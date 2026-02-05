@@ -109,41 +109,49 @@ public class MusicService
 
     public object GetUsersInVoice(ulong userId)
     {
-        if (_discordClient == null) return new { guild = "บอทไม่พร้อม", users = new List<object>() };
+        if (_discordClient == null)
+            return new { guild = "บอทไม่พร้อม", users = new List<object>() };
 
-        // 1. หาตำแหน่งของคุณ (ผู้ล็อกอิน) ว่าตอนนี้อยู่เซิร์ฟเวอร์ไหน และห้องไหน
-        var user = _discordClient.GetUser(userId) as SocketGuildUser;
+        // หา user จากทุก guild ที่บอทอยู่
+        SocketGuildUser? user = null;
+        SocketGuild? guild = null;
 
-        // หากไม่พบด้วยวิธีแรก ให้วนหาจาก Guilds ที่บอทอยู่
-        if (user == null)
+        foreach (var g in _discordClient.Guilds)
         {
-            user = _discordClient.Guilds
-                .Select(g => g.GetUser(userId))
-                .FirstOrDefault(u => u != null);
+            var u = g.GetUser(userId);
+            if (u != null)
+            {
+                user = u;
+                guild = g;
+                break;
+            }
         }
 
-        // 2. เช็คว่าคุณอยู่ในห้องเสียง (Voice Channel) หรือไม่
-        if (user?.VoiceChannel != null)
+        if (user?.VoiceChannel == null || guild == null)
         {
-            var myChannel = user.VoiceChannel; // นี่คือห้องที่คุณอยู่จริงๆ เช่น "Lobby"
+            return new { guild = "คุณไม่ได้อยู่ในห้องเสียง", users = new List<object>() };
+        }
 
-            // 3. ดึงเฉพาะสมาชิกที่อยู่ในห้อง "myChannel" เท่านั้น
-            // ห้ามใช้ guild.Users เพราะจะทำให้เห็นคนทั้งเซิร์ฟเวอร์
-            var usersInRoom = myChannel.Users.Select(u => new
+        var channel = user.VoiceChannel;
+
+        // ✅ ใช้ VoiceStates จริง ๆ
+        var usersInRoom = guild.VoiceStates
+            .Where(vs => vs.Value.VoiceChannel?.Id == channel.Id)
+            .Select(vs => vs.Value.User)
+            .Where(u => u != null)
+            .Select(u => new
             {
-                name = u.GlobalName ?? u.Username,
+                name = u!.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
                 status = u.Status.ToString().ToLower()
-            }).ToList();
+            })
+            .ToList();
 
-            return new
-            {
-                guild = $"{myChannel.Guild.Name} ({myChannel.Name})",
-                users = usersInRoom
-            };
-        }
-
-        // กรณีไม่ได้เข้าห้องเสียง
-        return new { guild = "คุณไม่ได้อยู่ในห้องเสียง", users = new List<object>() };
+        return new
+        {
+            guild = $"{guild.Name} ({channel.Name})",
+            users = usersInRoom
+        };
     }
+
 }
