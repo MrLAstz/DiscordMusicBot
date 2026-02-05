@@ -10,7 +10,12 @@ public static class WebServer
     public static void Start(string[] args, MusicService music, string port)
     {
         var builder = WebApplication.CreateBuilder(args);
+
+        // ลงทะเบียน Services
         builder.Services.AddSingleton(music);
+        builder.Services.AddSingleton<YoutubeService>(); // ✅ ลงทะเบียน YoutubeService ให้ระบบรู้จัก
+        builder.Services.AddControllers(); // ✅ ลงทะเบียน Controller Service
+
         builder.Services.AddCors(options => {
             options.AddDefaultPolicy(policy => {
                 policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
@@ -24,6 +29,22 @@ public static class WebServer
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
+        // --- 🔍 เพิ่ม API Search ตรงนี้เลย (จะช่วยแก้ปัญหา 404 ได้แน่นอน) ---
+        app.MapGet("/api/search", async (string q, YoutubeService yt) =>
+        {
+            if (string.IsNullOrWhiteSpace(q)) return Results.BadRequest();
+            try
+            {
+                var results = await yt.SearchVideosAsync(q);
+                return Results.Ok(results);
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(ex.Message);
+            }
+        });
+
+        // --- Endpoint เดิมของคุณ ---
         app.MapGet("/status", async (HttpContext context, MusicService musicService) =>
         {
             string? userIdStr = context.Request.Query["userId"];
@@ -61,6 +82,7 @@ public static class WebServer
             return Results.BadRequest(new { message = "User ID is required" });
         });
 
+        app.MapControllers();
         app.Run();
     }
 }
