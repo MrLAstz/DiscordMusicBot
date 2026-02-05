@@ -366,25 +366,19 @@
                 const res = await fetch("/status");
                 const data = await res.json();
 
-                // 1. อัปเดตชื่อ Guild (Server Name)
-                // ตรวจสอบว่ามีข้อมูลส่งมาหรือไม่ ถ้าไม่มีให้ใช้ค่าเดิม
+                // 1. อัปเดตชื่อ Guild (อันนี้ของคุณดีอยู่แล้ว)
                 const guildElement = document.getElementById("guild-name");
-                if (data.guild) {
-                    guildElement.innerText = data.guild;
-                } else {
-                    guildElement.innerText = "ไม่ได้เชื่อมต่อ";
-                }
+                guildElement.innerText = data.guild || "ไม่ได้เชื่อมต่อ";
 
-                // 2. อัปเดตรายชื่อ Users
+                // 2. อัปเดตรายชื่อ Users (ปรับบรรทัดนี้ให้กระชับขึ้น)
                 const userList = document.getElementById("user-list");
 
-                // ตรวจสอบว่ารายชื่อ users อยู่ใน data.users หรือ data กันแน่
-                const users = Array.isArray(data.users) ? data.users : (data.users?.users || []);
+                // เราเจาะจงไปเลยว่าถ้า backend ส่ง { users: [...] } มาให้ใช้ตัวนั้น
+                const users = data.users || [];
 
                 if (users.length > 0) {
                     userList.innerHTML = users.map(u => {
-                        // กำหนดสีตามสถานะ
-                        let color = "#747f8d"; // offline/invisible
+                        let color = "#747f8d"; // offline
                         if (u.status === "online") color = "#3ba55c";
                         if (u.status === "idle") color = "#faa61a";
                         if (u.status === "dnd") color = "#ed4245";
@@ -399,7 +393,7 @@
                     </div>`;
                     }).join('');
                 } else {
-                    userList.innerHTML = `<div style="color:#666; padding:10px;">ห้องว่างเปล่า</div>`;
+                    userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้องวอยซ์</div>`;
                 }
             } catch (e) {
                 console.error("Fetch error:", e);

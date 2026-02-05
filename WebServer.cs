@@ -37,14 +37,12 @@ public static class WebServer
         // ✅ 3. ใช้ MapGet อันเดียวที่ส่งข้อมูลครบๆ (รวมร่างแล้ว)
         app.MapGet("/status", () =>
         {
-            // ต้องเรียก GetUsersInVoice() ก่อนเพื่อให้ CurrentGuildName ถูกอัปเดต
-            var users = music.GetUsersInVoice();
+            // เรียก GetUsersInVoice ซึ่งตอนนี้เราแก้ให้มันคืนค่าเป็นก้อน { guild, users } แล้ว
+            var statusData = music.GetUsersInVoice();
 
-            return Results.Ok(new
-            {
-                guild = music.CurrentGuildName, // ส่งชื่อเซิร์ฟเวอร์
-                users = users                 // ส่งรายชื่อคน
-            });
+            // ส่งค่า statusData ออกไปตรงๆ ได้เลย 
+            // เพราะข้างใน statusData มีทั้ง guild และ users อยู่แล้ว
+            return Results.Ok(statusData);
         });
 
         app.Run();
