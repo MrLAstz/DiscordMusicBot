@@ -14,8 +14,50 @@ public class CommandHandler
         _client = client;
         _music = music;
 
-        // เปลี่ยนมาใช้ระบบ Slash Command
+        // 1. ลงทะเบียนเหตุการณ์เมื่อบอทพร้อม เพื่อส่งรายชื่อคำสั่งไปให้ Discord
+        _client.Ready += RegisterCommandsAsync;
+
+        // 2. รับคำสั่ง Slash Command
         _client.SlashCommandExecuted += HandleSlashCommandAsync;
+    }
+
+    private async Task RegisterCommandsAsync()
+    {
+        try
+        {
+            // สร้างคำสั่ง /help
+            var helpCmd = new SlashCommandBuilder()
+                .WithName("help")
+                .WithDescription("ดูเมนูคำสั่งทั้งหมด");
+
+            // สร้างคำสั่ง /join
+            var joinCmd = new SlashCommandBuilder()
+                .WithName("join")
+                .WithDescription("สั่งให้บอทเข้าห้องเสียง");
+
+            // สร้างคำสั่ง /play [url]
+            var playCmd = new SlashCommandBuilder()
+                .WithName("play")
+                .WithDescription("เล่นเพลงจาก YouTube")
+                .AddOption("url", ApplicationCommandOptionType.String, "ชื่อเพลงหรือลิงก์ YouTube", isRequired: true);
+
+            // สร้างคำสั่ง /status
+            var statusCmd = new SlashCommandBuilder()
+                .WithName("status")
+                .WithDescription("ดูสถานะปัจจุบัน");
+
+            // ส่งคำสั่งทั้งหมดไปที่ Discord (แบบ Global)
+            await _client.CreateGlobalApplicationCommandAsync(helpCmd.Build());
+            await _client.CreateGlobalApplicationCommandAsync(joinCmd.Build());
+            await _client.CreateGlobalApplicationCommandAsync(playCmd.Build());
+            await _client.CreateGlobalApplicationCommandAsync(statusCmd.Build());
+
+            Console.WriteLine("✅ Slash Commands registered successfully!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error registering commands: {ex.Message}");
+        }
     }
 
     private async Task HandleSlashCommandAsync(SocketSlashCommand command)
