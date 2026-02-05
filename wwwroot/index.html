@@ -497,19 +497,21 @@
                 const videos = await response.json();
 
                 let html = `<div class="video-grid">`;
+                // ในส่วนการสร้าง HTML ภายในฟังก์ชัน search()
                 videos.forEach(v => {
                     html += `
-                <div class="video-card-item" onclick="play('${v.url}')">
-                    <div class="video-thumb">
-                        <img src="${v.thumbnail}">
-                        <span class="duration-tag">${v.duration}</span>
+                    <div class="video-card-item" onclick="play('${v.url}')">
+                        <div class="video-thumb">
+                            <img src="${v.thumbnail}" style="width:100%; height:100%; object-fit:cover;">
+                            <span class="duration-tag">${v.duration}</span>
+                        </div>
+                        <div class="video-info-text">
+                            <div class="video-title-text" title="${v.title}">${v.title}</div>
+                            <div class="video-meta-text">${v.author}</div>
+                            <div class="video-meta-text">${v.views} • ${v.uploaded}</div>
+                        </div>
                     </div>
-                    <div class="video-info-text">
-                        <div class="video-title-text">${v.title}</div>
-                        <div class="video-meta-text">${v.author}</div>
-                    </div>
-                </div>
-            `;
+                    `;
                 });
                 html += `</div>`;
                 display.innerHTML = html;

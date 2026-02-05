@@ -18,19 +18,41 @@ public class YoutubeService
 
         await foreach (var video in searchResults)
         {
+            // ดึงข้อมูลวิดีโอแบบละเอียดขึ้นเพื่อเอายอดวิว
             results.Add(new
             {
                 title = video.Title,
                 url = video.Url,
-                // ดึงรูป Thumbnail ที่คุณภาพสูงที่สุด
                 thumbnail = video.Thumbnails.OrderByDescending(t => t.Resolution.Area).FirstOrDefault()?.Url,
                 author = video.Author.Title,
-                duration = video.Duration?.ToString(@"mm\:ss") ?? "00:00"
+                duration = video.Duration?.ToString(@"mm\:ss") ?? "00:00",
+                // เพิ่มส่วนนี้:
+                views = FormatViews(video.Engagement.ViewCount),
+                uploaded = FormatTimeAgo(video.UploadDate)
             });
 
             if (results.Count >= limit) break;
         }
         return results;
+    }
+
+    // Helper: ปรับยอดวิวให้ดูง่าย (เช่น 1.2M, 50K)
+    private string FormatViews(long views)
+    {
+        if (views >= 1000000) return $"{(views / 1000000D):F1}M views";
+        if (views >= 1000) return $"{(views / 1000D):F1}K views";
+        return $"{views} views";
+    }
+
+    // Helper: ปรับวันที่ให้เป็นแบบ "... ago"
+    private string FormatTimeAgo(DateTimeOffset? date)
+    {
+        if (!date.HasValue) return "";
+        var span = DateTimeOffset.Now - date.Value;
+        if (span.TotalDays > 365) return $"{(int)(span.TotalDays / 365)} years ago";
+        if (span.TotalDays > 30) return $"{(int)(span.TotalDays / 30)} months ago";
+        if (span.TotalDays > 0) return $"{(int)span.TotalDays} days ago";
+        return "Today";
     }
 
     // --- Method GetAudioStreamAsync เดิมของคุณ ---
