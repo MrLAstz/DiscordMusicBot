@@ -26,6 +26,7 @@ public class BotService
 
         _client = new DiscordSocketClient(config);
         _music.SetDiscordClient(_client);
+        _handler = new CommandHandler(_client, _music);
     }
 
     public async Task StartAsync()
