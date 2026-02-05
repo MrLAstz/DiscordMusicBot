@@ -504,6 +504,12 @@
         window.loggedUserId = null;
         let isPlaying = false;
 
+        // --- เพิ่มตัวแปรสำหรับ Infinite Scroll ---
+        let currentOffset = 0;
+        let isLoading = false;
+        let currentQuery = "";
+        const limit = 12; // จำนวนที่โหลดต่อครั้ง ให้ตรงกับฝั่ง C#
+
         async function handleDiscordLogin() {
             const fragment = new URLSearchParams(window.location.hash.slice(1));
             let accessToken = fragment.get('access_token') || localStorage.getItem('discord_access_token');
@@ -517,15 +523,15 @@
                     window.loggedUserId = user.id;
                     localStorage.setItem('discord_access_token', accessToken);
                     document.getElementById('auth-section').innerHTML = `
-                            <div class="user-menu-container" style="position: relative;">
-                                <div class="user-pill" onclick="toggleLogoutMenu()">
-                                    <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png" class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                    <span style="color: white;">${user.global_name || user.username}</span>
-                                </div>
-                                <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; z-index: 100;">
-                                    <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left;">🚪 Logout</button>
-                                </div>
-                            </div>`;
+                                <div class="user-menu-container" style="position: relative;">
+                                    <div class="user-pill" onclick="toggleLogoutMenu()">
+                                        <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png" class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                        <span style="color: white;">${user.global_name || user.username}</span>
+                                    </div>
+                                    <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; z-index: 100;">
+                                        <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left;">🚪 Logout</button>
+                                    </div>
+                                </div>`;
                     updateStatus();
                     setInterval(updateStatus, 5000);
                     window.history.replaceState({}, document.title, "/");
@@ -556,10 +562,10 @@
             const box = document.getElementById("suggestion-box");
             if (!suggestions?.length) { box.style.display = "none"; return; }
             box.innerHTML = suggestions.map(item => `
-                    <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
-                        <svg style="width:16px; height:16px; fill:#888;" viewBox="0 0 24 24"><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></svg>
-                        ${item[0]}
-                    </div>`).join('');
+                        <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
+                            <svg style="width:16px; height:16px; fill:#888;" viewBox="0 0 24 24"><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></svg>
+                            ${item[0]}
+                        </div>`).join('');
             box.style.display = "block";
         }
 
@@ -569,16 +575,44 @@
             search();
         }
 
+        // --- แก้ไขฟังก์ชัน Search เดิม ---
         async function search() {
             const query = document.getElementById("search").value;
-            const display = document.getElementById("player-display");
             if (!query) return;
+
+            currentQuery = query;
+            currentOffset = 0; // เริ่มใหม่ทุกครั้งที่กดค้นหา
             document.getElementById("suggestion-box").style.display = "none";
+
+            const display = document.getElementById("player-display");
             display.innerHTML = `<div style="color:white; margin-top:50px; text-align:center;">🔍 กำลังค้นหา...</div>`;
+
+            await loadMore(); // ไปที่ฟังก์ชันโหลดข้อมูล
+        }
+
+        // --- ฟังก์ชันใหม่สำหรับโหลดข้อมูล (รองรับทั้ง search และ infinite scroll) ---
+        async function loadMore() {
+            if (isLoading) return;
+            isLoading = true;
+
             try {
-                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                const response = await fetch(`/api/search?q=${encodeURIComponent(currentQuery)}&offset=${currentOffset}`);
                 const videos = await response.json();
-                let html = `<div class="video-grid">`;
+                const display = document.getElementById("player-display");
+
+                if (currentOffset === 0) {
+                    display.innerHTML = `<div class="video-grid"></div>`;
+                }
+
+                if (videos.length === 0) {
+                    if (currentOffset !== 0) {
+                        display.querySelector(".video-grid").insertAdjacentHTML('afterend', '<div style="color:gray; padding:20px; text-align:center;">หมดแล้วจ้า ✨</div>');
+                    }
+                    isLoading = false;
+                    return;
+                }
+
+                let html = "";
                 videos.forEach(v => {
                     html += `
                             <div class="video-card-item" onclick="play('${v.url}', '${v.title.replace(/'/g, "\\'")}', '${v.author.replace(/'/g, "\\'")}', '${v.thumbnail}', '${v.duration}')">
@@ -593,9 +627,29 @@
                                 </div>
                             </div>`;
                 });
-                display.innerHTML = html + `</div>`;
-            } catch (e) { display.innerHTML = `<div style="color:red; text-align:center;">❌ Error: ${e.message}</div>`; }
+
+                document.querySelector(".video-grid").insertAdjacentHTML('beforeend', html);
+                currentOffset += limit;
+
+            } catch (e) {
+                console.error(e);
+                if (currentOffset === 0) document.getElementById("player-display").innerHTML = `<div style="color:red; text-align:center;">❌ Error: ${e.message}</div>`;
+            } finally {
+                isLoading = false;
+            }
         }
+
+        // --- ตรวจจับการเลื่อนหน้าจอ ---
+        // ตรวจสอบว่า Class ของส่วนแสดงผลหลักคือ .content หรือไม่ ถ้าใช่ให้ใช้ตามนี้
+        const contentArea = document.querySelector('.content') || window;
+        contentArea.addEventListener('scroll', function () {
+            const target = contentArea === window ? document.documentElement : this;
+            if (target.scrollTop + target.clientHeight >= target.scrollHeight - 100) {
+                if (currentQuery && !isLoading) {
+                    loadMore();
+                }
+            }
+        });
 
         function showBox() { if (document.getElementById("search").value.length >= 2) document.getElementById("suggestion-box").style.display = "block"; }
 
@@ -615,6 +669,10 @@
         function togglePlay() {
             isPlaying = !isPlaying;
             document.getElementById("play-pause-btn").innerHTML = isPlaying ? '<i class="fas fa-pause"></i>' : '<i class="fas fa-play"></i>';
+            // เพิ่ม fetch ไปที่ /toggle ของคุณด้วยถ้าต้องการให้บอทหยุดจริงๆ
+            if (window.loggedUserId) {
+                fetch(`/toggle?userId=${window.loggedUserId}`, { method: "POST" });
+            }
         }
 
         async function updateStatus() {
@@ -627,11 +685,11 @@
                 const users = data.users || [];
                 if (users.length > 0) {
                     userList.innerHTML = users.map(u => `
-                            <div class="user-item">
-                                <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                <div class="status-dot" style="background-color: ${u.status === 'online' ? '#3ba55c' : u.status === 'dnd' ? '#ed4245' : '#faa61a'}"></div>
-                                <span style="color:#dbdee1;">${u.name}</span>
-                            </div>`).join('');
+                                <div class="user-item">
+                                    <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                    <div class="status-dot" style="background-color: ${u.status === 'online' ? '#3ba55c' : u.status === 'dnd' ? '#ed4245' : '#faa61a'}"></div>
+                                    <span style="color:#dbdee1;">${u.name}</span>
+                                </div>`).join('');
                 } else { userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้องเสียง</div>`; }
             } catch (e) { console.error(e); }
         }
