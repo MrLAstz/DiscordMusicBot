@@ -1,0 +1,66 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Discord Music Bot</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #0f172a;
+            color: white;
+            text-align: center;
+            padding: 40px;
+        }
+
+        input {
+            width: 300px;
+            padding: 10px;
+        }
+
+        button {
+            padding: 10px 15px;
+            margin-left: 5px;
+            cursor: pointer;
+        }
+
+        iframe {
+            margin-top: 20px;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎵 Discord Music Bot</h1>
+
+    <input id="search" placeholder="ค้นหาเพลง YouTube">
+    <button onclick="search()">ค้นหา</button>
+    <button onclick="join()">Join Voice</button>
+
+    <div id="player"></div>
+
+    <script>
+        function search() {
+            const q = document.getElementById("search").value;
+            const url = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(q)}`;
+            document.getElementById("player").innerHTML = `
+        <iframe width="560" height="315" src="${url}" allowfullscreen></iframe>
+        <br>
+        <button onclick="play('${q}')">▶️ เล่นใน Discord</button>
+      `;
+        }
+
+        async function join() {
+            await fetch("/join", { method: "POST" });
+            alert("บอทเข้า voice แล้ว");
+        }
+
+        async function play(query) {
+            const url = "https://www.youtube.com/results?search_query=" + encodeURIComponent(query);
+            await fetch(`/play?url=${encodeURIComponent(url)}`, { method: "POST" });
+            alert("สั่งเล่นเพลงแล้ว");
+        }
+    </script>
+
+</body>
+</html>

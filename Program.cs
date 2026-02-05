@@ -1,27 +1,34 @@
-﻿using Microsoft.Extensions.Configuration;
-using DiscordMusicBot.Bot;
+﻿using DiscordMusicBot.Bot;
+using Microsoft.Extensions.Configuration;
 
-class Program
+var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddEnvironmentVariables();
+
+var token = builder.Configuration["DISCORD_TOKEN"];
+if (string.IsNullOrEmpty(token))
 {
-    static async Task Main(string[] args)
-    {
-        var config = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddEnvironmentVariables()
-            .Build();
-
-        var token = config["Discord:Token"];
-
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            Console.WriteLine("❌ Discord Token not found");
-            return;
-        }
-
-        var bot = new BotService(token);
-        await bot.StartAsync();
-
-        await Task.Delay(-1);
-    }
+    Console.WriteLine("❌ Missing DISCORD_TOKEN");
+    return;
 }
+
+var app = builder.Build();
+
+var bot = new BotService(token);
+await bot.StartAsync();
+
+// ===== API =====
+app.MapGet("/", () => Results.File("wwwroot/index.html", "text/html"));
+
+app.MapPost("/join", async () =>
+{
+    await bot.JoinFromWebAsync();
+    return Results.Ok();
+});
+
+app.MapPost("/play", async (string url) =>
+{
+    await bot.PlayFromWebAsync(url);
+    return Results.Ok();
+});
+
+app.Run();

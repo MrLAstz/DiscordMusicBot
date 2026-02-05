@@ -63,7 +63,7 @@ public class CommandHandler
         catch (Exception ex)
         {
             Console.WriteLine($"🔥 Command error: {ex}");
-            await msg.Channel.SendMessageAsync("⚠️ เกิดข้อผิดพลาด แต่บอทยังไม่ล้ม");
+            await msg.Channel.SendMessageAsync("⚠️ เกิดข้อผิดพลาด");
         }
     }
 }

@@ -1,39 +1,31 @@
-﻿using Discord;
-using Discord.WebSocket;
-
-namespace DiscordMusicBot.Bot;
-
-public class BotService
+﻿public class BotService
 {
-    private readonly string _token;
-    private DiscordSocketClient? _client;
+    private readonly DiscordSocketClient _client;
+    private readonly MusicService _music;
 
     public BotService(string token)
     {
+        _client = new DiscordSocketClient();
+        _music = new MusicService();
         _token = token;
     }
 
     public async Task StartAsync()
     {
-        _client = new DiscordSocketClient(new DiscordSocketConfig
-        {
-            GatewayIntents =
-                GatewayIntents.Guilds |
-                GatewayIntents.GuildVoiceStates |
-                GatewayIntents.GuildMessages |
-                GatewayIntents.MessageContent
-        });
-
-        _client.Log += msg =>
-        {
-            Console.WriteLine(msg);
-            return Task.CompletedTask;
-        };
-
-        // 👇 ส่ง client ให้ command
-        new CommandHandler(_client);
-
         await _client.LoginAsync(TokenType.Bot, _token);
         await _client.StartAsync();
+    }
+
+    // ===== เรียกจากเว็บ =====
+    public async Task JoinFromWebAsync()
+    {
+        var guild = _client.Guilds.First();
+        var channel = guild.VoiceChannels.First();
+        await _music.JoinAndStayAsync(channel);
+    }
+
+    public async Task PlayFromWebAsync(string url)
+    {
+        await _music.PlayAsync(_music.LastChannel!, url);
     }
 }
