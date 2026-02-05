@@ -8,10 +8,10 @@ public class CommandHandler
     private readonly DiscordSocketClient _client;
     private readonly MusicService _music;
 
-    public CommandHandler(DiscordSocketClient client)
+    public CommandHandler(DiscordSocketClient client, MusicService music)
     {
         _client = client;
-        _music = new MusicService();
+        _music = music;
 
         _client.MessageReceived += HandleAsync;
     }
@@ -27,7 +27,6 @@ public class CommandHandler
 
             var channel = user.VoiceChannel;
 
-            // !join
             if (msg.Content == "!join")
             {
                 if (channel == null)
@@ -37,33 +36,12 @@ public class CommandHandler
                 }
 
                 await _music.JoinAndStayAsync(channel);
-                await msg.Channel.SendMessageAsync("✅ บอท voice ห้องว่าง");
-            }
-
-            // !play <url>
-            else if (msg.Content.StartsWith("!play "))
-            {
-                if (channel == null)
-                {
-                    await msg.Channel.SendMessageAsync("❌ เข้าห้องเสียงก่อน");
-                    return;
-                }
-
-                var url = msg.Content.Replace("!play ", "").Trim();
-                await _music.PlayAsync(channel, url);
-            }
-
-            // !leave
-            else if (msg.Content == "!leave")
-            {
-                await _music.LeaveAsync();
-                await msg.Channel.SendMessageAsync("👋 ออกจาก voice แล้ว");
+                await msg.Channel.SendMessageAsync("✅ เข้า voice แล้ว");
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"🔥 Command error: {ex}");
-            await msg.Channel.SendMessageAsync("⚠️ เกิดข้อผิดพลาด");
         }
     }
 }
