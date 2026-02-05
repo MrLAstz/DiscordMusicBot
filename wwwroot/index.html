@@ -5,7 +5,7 @@
     <title>Discord Music Bot</title>
     <style>
         body {
-            font-family: Arial;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #0f172a;
             color: white;
             text-align: center;
@@ -15,16 +15,30 @@
         input {
             width: 300px;
             padding: 10px;
+            border-radius: 5px;
+            border: none;
         }
 
         button {
             padding: 10px 15px;
-            margin-left: 5px;
+            margin: 5px;
             cursor: pointer;
+            border-radius: 5px;
+            border: none;
+            background: #3b82f6;
+            color: white;
+            font-weight: bold;
         }
 
-        iframe {
+            button:hover {
+                background: #2563eb;
+            }
+
+        .player-container {
             margin-top: 20px;
+            padding: 20px;
+            background: #1e293b;
+            display: inline-block;
             border-radius: 12px;
         }
     </style>
@@ -33,33 +47,48 @@
 
     <h1>🎵 Discord Music Bot</h1>
 
-    <input id="search" placeholder="ค้นหาเพลง YouTube">
+    <input id="search" placeholder="พิมพ์ชื่อเพลง หรือวาง Link YouTube">
     <button onclick="search()">ค้นหา</button>
-    <button onclick="join()">Join Voice</button>
+    <button onclick="join()" style="background: #10b981;">Join Voice</button>
 
     <div id="player"></div>
 
     <script>
         function search() {
             const q = document.getElementById("search").value;
-            const url = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(q)}`;
+            if (!q) return alert("กรุณาพิมพ์ชื่อเพลง");
+
+            // ปรับการแสดงผล: เนื่องจาก YouTube บล็อก iframe search
+            // เราจะโชว์ชื่อเพลงที่จะเล่นแทน เพื่อความชัวร์ในการรันบน Server
             document.getElementById("player").innerHTML = `
-        <iframe width="560" height="315" src="${url}" allowfullscreen></iframe>
-        <br>
-        <button onclick="play('${q}')">▶️ เล่นใน Discord</button>
-      `;
+                    <div class="player-container">
+                        <h3>กำลังเตรียมเล่น: ${q}</h3>
+                        <p>กดปุ่มด้านล่างเพื่อส่งเพลงเข้า Discord</p>
+                        <button onclick="play('${q}')">▶️ เริ่มเล่นเพลงใน Discord</button>
+                    </div>
+                `;
         }
 
         async function join() {
-            await fetch("/join", { method: "POST" });
-            alert("บอทเข้า voice แล้ว");
+            try {
+                const res = await fetch("/join", { method: "POST" });
+                if (res.ok) alert("✅ บอทกำลังเข้าห้องเสียงล่าสุดของคุณ");
+                else alert("❌ เกิดข้อผิดพลาด (บอทอาจยังไม่เห็นคุณในห้องเสียง)");
+            } catch (e) {
+                alert("❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+            }
         }
 
         async function play(query) {
-            const url = "https://www.youtube.com/results?search_query=" + encodeURIComponent(query);
-            // ส่งแค่คำค้นหาไป เดี๋ยว C# จะไปจัดการค้นหาคลิปแรกเอง
-            await fetch(`/play?url=${encodeURIComponent(query)}`, { method: "POST" });
-            alert("สั่งเล่นเพลงแล้ว");
+            // ส่งแค่ query (ชื่อเพลง) ไปที่ API /play ของเราตรงๆ
+            // เดี๋ยว YoutubeService.cs ที่เราแก้ไว้จะไปหาคลิปแรกให้เอง
+            try {
+                const res = await fetch(`/play?url=${encodeURIComponent(query)}`, { method: "POST" });
+                if (res.ok) alert("🎵 สั่งเล่นเพลงสำเร็จ!");
+                else alert("❌ สั่งเล่นเพลงไม่สำเร็จ");
+            } catch (e) {
+                alert("❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+            }
         }
     </script>
 
