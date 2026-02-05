@@ -83,22 +83,26 @@ public static class WebServer
             return Results.BadRequest(new { message = "User ID is required" });
         });
 
-        app.MapPost("/toggle", async (string userId, MusicService musicService) => {
-            if (ulong.TryParse(userId, out ulong id))
+        // --- แก้ไข Endpoint /toggle ---
+        app.MapPost("/toggle", async (HttpContext context, MusicService musicService) => {
+            string? userIdStr = context.Request.Query["userId"]; // ดึงจาก Query String ให้เหมือน /play
+            if (ulong.TryParse(userIdStr, out ulong id))
             {
-                await musicService.ToggleAsync(id); // ต้องมี Method นี้ใน MusicService
-                return Results.Ok();
+                await musicService.ToggleAsync(id);
+                return Results.Ok(new { message = "Toggled" });
             }
-            return Results.BadRequest();
+            return Results.BadRequest(new { message = "Invalid User ID" });
         });
 
-        app.MapPost("/skip", async (string userId, MusicService musicService) => {
-            if (ulong.TryParse(userId, out ulong id))
+        // --- แก้ไข Endpoint /skip ---
+        app.MapPost("/skip", async (HttpContext context, MusicService musicService) => {
+            string? userIdStr = context.Request.Query["userId"]; // ดึงจาก Query String
+            if (ulong.TryParse(userIdStr, out ulong id))
             {
-                await musicService.SkipAsync(id); // ต้องมี Method นี้ใน MusicService
-                return Results.Ok();
+                await musicService.SkipAsync(id);
+                return Results.Ok(new { message = "Skipped" });
             }
-            return Results.BadRequest();
+            return Results.BadRequest(new { message = "Invalid User ID" });
         });
         app.MapControllers();
         app.Run();
