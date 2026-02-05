@@ -35,7 +35,7 @@ public class CommandHandler
                     return;
                 }
 
-                await _music.JoinAndStayAsync(channel);
+                await _music.JoinAsync(channel);
                 await msg.Channel.SendMessageAsync("✅ เข้า voice แล้ว");
             }
         }
