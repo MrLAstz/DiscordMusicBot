@@ -7,32 +7,38 @@ namespace DiscordMusicBot.Bot;
 public class BotService
 {
     private readonly DiscordSocketClient _client;
-    private readonly MusicService _music;
     private readonly string _token;
+    private readonly MusicService _music;
 
     public BotService(string token, MusicService music)
     {
         _token = token;
         _music = music;
 
-        _client = new DiscordSocketClient(new DiscordSocketConfig
+        // แก้ไขจุดนี้: ใส่ Config เพื่อเปิดใช้งาน Intents และ Caching
+        var config = new DiscordSocketConfig
         {
-            // 1. ตรวจสอบว่าใช้ GatewayIntents.All หรืออย่างน้อยต้องมี GuildVoiceStates และ GuildMembers
-            GatewayIntents = GatewayIntents.All,
-            AlwaysDownloadUsers = true // 2. เพิ่มบรรทัดนี้เพื่อให้บอทเก็บข้อมูล User ไว้ใน Cache เสมอ
-        });
+            GatewayIntents = GatewayIntents.AllUnprivileged |
+                             GatewayIntents.GuildMembers |
+                             GatewayIntents.GuildPresences,
+            AlwaysDownloadUsers = true,
+            MessageCacheSize = 100
+        };
 
-        // 3. ส่งตัว client นี้ไปให้ MusicService ใช้งาน (ต้องไปสร้าง Method นี้ใน MusicService ด้วย)
+        _client = new DiscordSocketClient(config);
         _music.SetDiscordClient(_client);
-
-        new CommandHandler(_client, _music);
     }
 
     public async Task StartAsync()
     {
+        _client.Log += LogAsync;
         await _client.LoginAsync(TokenType.Bot, _token);
         await _client.StartAsync();
+    }
 
-        Console.WriteLine("🤖 Discord Bot started");
+    private Task LogAsync(LogMessage log)
+    {
+        Console.WriteLine(log.ToString());
+        return Task.CompletedTask;
     }
 }
