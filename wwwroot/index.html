@@ -23,8 +23,10 @@
             margin: 0;
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
+            /* แก้ไข: ยอมให้ body เลื่อนได้เพื่อทำ Infinite Scroll */
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
         /* Header & Navigation */
@@ -37,7 +39,9 @@
             border-bottom: 1px solid #333;
             height: 65px;
             gap: 20px;
-            flex-shrink: 0;
+            position: sticky; /* ล็อกไว้ด้านบน */
+            top: 0;
+            z-index: 1000;
         }
 
         .logo {
@@ -89,12 +93,6 @@
                 background: #272727;
             }
 
-        .yt-icon {
-            width: 20px;
-            height: 20px;
-            fill: white;
-        }
-
         #suggestion-box {
             position: absolute;
             top: 105%;
@@ -127,8 +125,7 @@
         .main-container {
             display: flex;
             flex: 1;
-            overflow: hidden;
-            padding-bottom: 90px;
+            padding-bottom: 100px; /* เว้นที่ให้ Player Bar */
         }
 
         .sidebar {
@@ -136,14 +133,18 @@
             background: var(--bg-dark);
             padding: 20px;
             border-right: 1px solid #333;
+            /* ล็อก Sidebar ให้อยู่กับที่ */
+            position: sticky;
+            top: 65px;
+            height: calc(100vh - 155px);
             overflow-y: auto;
         }
 
         .content {
             flex: 1;
             padding: 20px 40px;
-            overflow-y: auto; /* ส่วนนี้สำคัญสำหรับการเลื่อน */
-            scroll-behavior: smooth;
+            /* ให้ content ขยายตามข้อมูลเพื่อให้ window scroll ทำงาน */
+            min-height: calc(100vh - 155px);
         }
 
         .video-grid {
@@ -240,11 +241,6 @@
             margin-right: 12px;
             object-fit: cover;
             background: #222;
-            flex-shrink: 0;
-        }
-
-        .track-text {
-            overflow: hidden;
         }
 
         .track-title {
@@ -254,11 +250,6 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-        }
-
-        .track-author {
-            font-size: 12px;
-            color: #aaa;
         }
 
         .player-controls-container {
@@ -281,12 +272,7 @@
             color: white;
             font-size: 18px;
             cursor: pointer;
-            transition: 0.2s;
         }
-
-            .control-btn:hover {
-                color: var(--yt-red);
-            }
 
         .play-main {
             background: white !important;
@@ -324,26 +310,16 @@
             width: 0%;
         }
 
-        .extra-controls {
-            width: 30%;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            color: #aaa;
-            gap: 15px;
-        }
-
         .discord-login-btn {
             background: var(--discord-blue);
             text-decoration: none;
             color: white;
             border-radius: 20px;
             padding: 10px 18px;
+            font-weight: bold;
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 0.9em;
-            font-weight: bold;
         }
 
         .user-pill {
@@ -354,12 +330,7 @@
             padding: 6px 14px;
             border-radius: 20px;
             cursor: pointer;
-        }
-
-        .nav-avatar {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
+            color: white;
         }
 
         .status-card {
@@ -370,16 +341,14 @@
             border: 1px solid #2a2a2a;
         }
 
-        .status-title {
-            font-size: 0.75em;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-
-        .guild-name {
-            color: #10b981;
-            font-weight: bold;
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid #1e1e1e;
+            margin-left: -15px;
+            margin-top: 20px;
+            z-index: 1;
         }
 
         .user-item {
@@ -395,33 +364,14 @@
             border-radius: 50%;
         }
 
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            border: 2px solid #1e1e1e;
-            margin-left: -15px;
-            margin-top: 20px;
-            z-index: 1;
-        }
-
         ::-webkit-scrollbar {
             width: 8px;
-            height: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #0f0f0f;
         }
 
         ::-webkit-scrollbar-thumb {
             background: #333;
             border-radius: 10px;
         }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: var(--yt-red);
-            }
     </style>
 </head>
 <body>
@@ -433,14 +383,14 @@
                 <input id="search" placeholder="ค้นหาเพลงโปรดของคุณ..." autocomplete="off"
                        oninput="getSuggestions()" onfocus="showBox()" onkeypress="if(event.key==='Enter') search()">
                 <button class="search-btn" onclick="search()">
-                    <svg class="yt-icon" viewBox="0 0 24 24"><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></svg>
+                    <i class="fas fa-search"></i>
                 </button>
             </div>
             <div id="suggestion-box"></div>
         </div>
         <div id="auth-section">
             <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app&scope=identify+guilds" class="discord-login-btn">
-                <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20"> Login
+                Login
             </a>
         </div>
     </nav>
@@ -448,33 +398,31 @@
     <div class="main-container">
         <div class="sidebar">
             <div class="status-card">
-                <div class="status-title">📍 Current Server</div>
-                <div id="guild-name" class="guild-name">กรุณา Login</div>
+                <div style="font-size: 0.75em; color: var(--text-dim); margin-bottom: 8px;">📍 Current Server</div>
+                <div id="guild-name" style="color: #10b981; font-weight: bold;">กรุณา Login</div>
             </div>
             <div class="status-card">
-                <div class="status-title">👥 Voice Members</div>
+                <div style="font-size: 0.75em; color: var(--text-dim); margin-bottom: 8px;">👥 Voice Members</div>
                 <div id="user-list"><i style="color: #666;">เข้าสู่ระบบเพื่อดูสมาชิก</i></div>
             </div>
         </div>
+
         <div class="content">
             <div id="player-display">
                 <h2 style="color: #333; margin-top: 100px; text-align: center;">ค้นหาเพลงด้านบนเพื่อเริ่มความมันส์ 🎵</h2>
             </div>
             <div id="load-more-status" style="text-align: center; padding: 20px; color: #aaa; display: none;">
-                กำลังโหลดเพิ่ม...
+                <i class="fas fa-circle-notch fa-spin"></i> กำลังโหลดเพิ่ม...
             </div>
         </div>
     </div>
 
     <div class="player-bar">
         <div class="current-track-info">
-            <img id="current-thumb"
-                 src="https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png"
-                 onerror="this.src='https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png'"
-                 alt="Thumbnail">
+            <img id="current-thumb" src="https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png">
             <div class="track-text">
                 <div id="current-title" class="track-title">ไม่ได้เล่นเพลงใดๆ</div>
-                <div id="current-author" class="track-author">รอการเลือกเพลง</div>
+                <div id="current-author" style="font-size: 12px; color: #aaa;">รอการเลือกเพลง</div>
             </div>
         </div>
 
@@ -507,8 +455,6 @@
         let timeout = null;
         window.loggedUserId = null;
         let isPlaying = false;
-
-        // --- Infinite Scroll Variables ---
         let currentOffset = 0;
         let isLoading = false;
         let currentQuery = "";
@@ -527,15 +473,15 @@
                     window.loggedUserId = user.id;
                     localStorage.setItem('discord_access_token', accessToken);
                     document.getElementById('auth-section').innerHTML = `
-                                    <div class="user-menu-container" style="position: relative;">
-                                        <div class="user-pill" onclick="toggleLogoutMenu()">
-                                            <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png" class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                            <span style="color: white;">${user.global_name || user.username}</span>
-                                        </div>
-                                        <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; z-index: 100;">
-                                            <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left;">🚪 Logout</button>
-                                        </div>
-                                    </div>`;
+                            <div class="user-menu-container" style="position: relative;">
+                                <div class="user-pill" onclick="toggleLogoutMenu()">
+                                    <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png" style="width:28px; border-radius:50%;" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                    <span>${user.global_name || user.username}</span>
+                                </div>
+                                <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; z-index: 100;">
+                                    <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left;">🚪 Logout</button>
+                                </div>
+                            </div>`;
                     updateStatus();
                     setInterval(updateStatus, 5000);
                     window.history.replaceState({}, document.title, "/");
@@ -566,10 +512,9 @@
             const box = document.getElementById("suggestion-box");
             if (!suggestions?.length) { box.style.display = "none"; return; }
             box.innerHTML = suggestions.map(item => `
-                            <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
-                                <svg style="width:16px; height:16px; fill:#888;" viewBox="0 0 24 24"><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></svg>
-                                ${item[0]}
-                            </div>`).join('');
+                    <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
+                        <i class="fas fa-search" style="font-size:12px; color:#888;"></i> ${item[0]}
+                    </div>`).join('');
             box.style.display = "block";
         }
 
@@ -582,14 +527,10 @@
         async function search() {
             const query = document.getElementById("search").value;
             if (!query) return;
-
             currentQuery = query;
             currentOffset = 0;
-            document.getElementById("suggestion-box").style.display = "none";
-
             const display = document.getElementById("player-display");
             display.innerHTML = `<div style="color:white; margin-top:50px; text-align:center;">🔍 กำลังค้นหา...</div>`;
-
             await loadMore();
         }
 
@@ -605,10 +546,10 @@
                 const display = document.getElementById("player-display");
 
                 if (currentOffset === 0) {
-                    display.innerHTML = `<div class="video-grid"></div>`;
+                    display.innerHTML = `<div class="video-grid" id="main-grid"></div>`;
                 }
 
-                if (videos.length === 0) {
+                if (!videos || videos.length === 0) {
                     if (currentOffset !== 0) {
                         statusBox.innerText = "หมดแล้วจ้า ✨";
                         setTimeout(() => statusBox.style.display = "none", 3000);
@@ -621,46 +562,39 @@
 
                 let html = "";
                 videos.forEach(v => {
-                    // แก้ไขการดึง thumbnail ให้ปลอดภัยขึ้น
                     const thumbUrl = v.thumbnail || 'https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png';
                     html += `
-                                <div class="video-card-item" onclick="play('${v.url}', '${v.title.replace(/'/g, "\\'")}', '${v.author.replace(/'/g, "\\'")}', '${thumbUrl}', '${v.duration}')">
-                                    <div class="video-thumb">
-                                        <img src="${thumbUrl}" onerror="this.src='https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png'">
-                                        <span class="duration-tag">${v.duration}</span>
-                                    </div>
-                                    <div class="video-info-text">
-                                        <div class="video-title-text">${v.title}</div>
-                                        <div class="video-meta-text">${v.author}</div>
-                                        <div class="video-meta-text">${v.views || '0 views'} • ${v.uploaded || ''}</div>
-                                    </div>
-                                </div>`;
+                            <div class="video-card-item" onclick="play('${v.url}', '${v.title.replace(/'/g, "\\'")}', '${v.author.replace(/'/g, "\\'")}', '${thumbUrl}', '${v.duration}')">
+                                <div class="video-thumb">
+                                    <img src="${thumbUrl}" onerror="this.src='https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png'">
+                                    <span class="duration-tag">${v.duration}</span>
+                                </div>
+                                <div class="video-info-text">
+                                    <div class="video-title-text">${v.title}</div>
+                                    <div class="video-meta-text">${v.author}</div>
+                                    <div class="video-meta-text">${v.views || '0 views'}</div>
+                                </div>
+                            </div>`;
                 });
 
-                display.querySelector(".video-grid").insertAdjacentHTML('beforeend', html);
+                document.getElementById("main-grid").insertAdjacentHTML('beforeend', html);
                 currentOffset += limit;
-
             } catch (e) {
                 console.error(e);
-                if (currentOffset === 0) display.innerHTML = `<div style="color:red; text-align:center;">❌ Error: ${e.message}</div>`;
             } finally {
                 isLoading = false;
                 statusBox.style.display = "none";
             }
         }
 
-        // --- แก้ไขจุดดักจับ Scroll (Focus ที่ .content) ---
-        const contentArea = document.querySelector('.content');
-        if (contentArea) {
-            contentArea.addEventListener('scroll', function () {
-                // เช็คว่าเลื่อนลงมาจนถึงก้น container หรือยัง (เผื่อระยะไว้ 150px)
-                if (this.scrollTop + this.clientHeight >= this.scrollHeight - 150) {
-                    if (currentQuery && !isLoading) {
-                        loadMore();
-                    }
+        // --- จุดสำคัญ: ตรวจจับการเลื่อนหน้าจอ ---
+        window.addEventListener('scroll', () => {
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
+                if (currentQuery && !isLoading) {
+                    loadMore();
                 }
-            });
-        }
+            }
+        });
 
         function showBox() { if (document.getElementById("search").value.length >= 2) document.getElementById("suggestion-box").style.display = "block"; }
 
@@ -670,19 +604,15 @@
             document.getElementById("current-author").innerText = author;
             document.getElementById("current-thumb").src = thumb;
             document.getElementById("total-duration").innerText = duration;
-            document.getElementById("progress-red").style.width = "0%";
             isPlaying = true;
             document.getElementById("play-pause-btn").innerHTML = '<i class="fas fa-pause"></i>';
-            const params = new URLSearchParams({ url: url, userId: window.loggedUserId });
-            await fetch(`/play?${params.toString()}`, { method: "POST" });
+            await fetch(`/play?url=${encodeURIComponent(url)}&userId=${window.loggedUserId}`, { method: "POST" });
         }
 
         function togglePlay() {
             isPlaying = !isPlaying;
             document.getElementById("play-pause-btn").innerHTML = isPlaying ? '<i class="fas fa-pause"></i>' : '<i class="fas fa-play"></i>';
-            if (window.loggedUserId) {
-                fetch(`/toggle?userId=${window.loggedUserId}`, { method: "POST" });
-            }
+            if (window.loggedUserId) fetch(`/toggle?userId=${window.loggedUserId}`, { method: "POST" });
         }
 
         async function updateStatus() {
@@ -695,11 +625,11 @@
                 const users = data.users || [];
                 if (users.length > 0) {
                     userList.innerHTML = users.map(u => `
-                                    <div class="user-item">
-                                        <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                        <div class="status-dot" style="background-color: ${u.status === 'online' ? '#3ba55c' : u.status === 'dnd' ? '#ed4245' : '#faa61a'}"></div>
-                                        <span style="color:#dbdee1;">${u.name}</span>
-                                    </div>`).join('');
+                            <div class="user-item">
+                                <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                <div class="status-dot" style="background-color: ${u.status === 'online' ? '#3ba55c' : '#faa61a'}"></div>
+                                <span style="color:#dbdee1;">${u.name}</span>
+                            </div>`).join('');
                 } else { userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้องเสียง</div>`; }
             } catch (e) { console.error(e); }
         }
@@ -707,10 +637,6 @@
         handleDiscordLogin();
         document.addEventListener("click", (e) => {
             if (!e.target.closest('.search-container')) document.getElementById("suggestion-box").style.display = "none";
-            if (!e.target.closest('.user-menu-container')) {
-                const menu = document.getElementById("logout-menu");
-                if (menu) menu.style.display = "none";
-            }
         });
     </script>
 </body>
