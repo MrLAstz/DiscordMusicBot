@@ -50,7 +50,6 @@
             white-space: nowrap;
         }
 
-        /* Search Container */
         .search-container {
             flex: 1;
             max-width: 600px;
@@ -129,11 +128,11 @@
             display: flex;
             flex: 1;
             overflow: hidden;
-            padding-bottom: 90px; /* กันพื้นที่ให้ Player Bar */
+            padding-bottom: 90px;
         }
 
         .sidebar {
-            width: 240px;
+            width: 240px; /* ปรับลดความกว้างตามที่ต้องการ */
             background: var(--bg-dark);
             padding: 20px;
             border-right: 1px solid #333;
@@ -146,7 +145,6 @@
             overflow-y: auto;
         }
 
-        /* YouTube Grid Style */
         .video-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -210,7 +208,7 @@
             color: #aaa;
         }
 
-        /* Player Bar Section */
+        /* Player Bar */
         .player-bar {
             position: fixed;
             bottom: 0;
@@ -231,7 +229,7 @@
             display: flex;
             align-items: center;
             width: 30%;
-            min-width: 200px;
+            min-width: 250px;
         }
 
         #current-thumb {
@@ -241,6 +239,11 @@
             margin-right: 12px;
             object-fit: cover;
             background: #222;
+            flex-shrink: 0;
+        }
+
+        .track-text {
+            overflow: hidden;
         }
 
         .track-title {
@@ -318,18 +321,17 @@
             background: var(--yt-red);
             border-radius: 2px;
             width: 0%;
-            position: relative;
         }
 
         .extra-controls {
             width: 30%;
             display: flex;
             justify-content: flex-end;
+            align-items: center;
             color: #aaa;
             gap: 15px;
         }
 
-        /* Auth & Status */
         .discord-login-btn {
             background: var(--discord-blue);
             text-decoration: none;
@@ -401,26 +403,23 @@
             margin-top: 20px;
             z-index: 1;
         }
-        /* ปรับแต่งแถบเลื่อน (Scrollbar) ทั้งหมด */
+
         ::-webkit-scrollbar {
-            width: 8px; /* ความกว้างของแถบเลื่อนแนวตั้ง */
-            height: 8px; /* ความสูงของแถบเลื่อนแนวนอน */
+            width: 8px;
+            height: 8px;
         }
 
-        /* พื้นหลังของแถบเลื่อน (Track) */
         ::-webkit-scrollbar-track {
             background: #0f0f0f;
         }
 
-        /* ตัวเลื่อน (Thumb) */
         ::-webkit-scrollbar-thumb {
-            background: #333; /* สีเทาเข้มเพื่อให้ดู Smooth */
+            background: #333;
             border-radius: 10px;
         }
 
-            /* ตัวเลื่อนเมื่อเอาเมาส์ไปวาง (Hover) */
             ::-webkit-scrollbar-thumb:hover {
-                background: var(--yt-red); /* เปลี่ยนเป็นสีแดงเมื่อเอาเมาส์ไปชี้ */
+                background: var(--yt-red);
             }
     </style>
 </head>
@@ -428,7 +427,6 @@
 
     <nav>
         <div class="logo">🔴 <span>MrLastBot</span></div>
-
         <div class="search-container">
             <div class="search-area">
                 <input id="search" placeholder="ค้นหาเพลงโปรดของคุณ..." autocomplete="off"
@@ -439,11 +437,9 @@
             </div>
             <div id="suggestion-box"></div>
         </div>
-
         <div id="auth-section">
             <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app&scope=identify+guilds" class="discord-login-btn">
-                <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
-                Login
+                <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20"> Login
             </a>
         </div>
     </nav>
@@ -459,7 +455,6 @@
                 <div id="user-list"><i style="color: #666;">เข้าสู่ระบบเพื่อดูสมาชิก</i></div>
             </div>
         </div>
-
         <div class="content">
             <div id="player-display">
                 <h2 style="color: #333; margin-top: 100px; text-align: center;">ค้นหาเพลงด้านบนเพื่อเริ่มความมันส์ 🎵</h2>
@@ -469,7 +464,10 @@
 
     <div class="player-bar">
         <div class="current-track-info">
-            <img src="https://via.placeholder.com/150/333333/FFFFFF?text=Music" alt="Thumbnail">
+            <img id="current-thumb"
+                 src="https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png"
+                 onerror="this.src='https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png'"
+                 alt="Thumbnail">
             <div class="track-text">
                 <div id="current-title" class="track-title">ไม่ได้เล่นเพลงใดๆ</div>
                 <div id="current-author" class="track-author">รอการเลือกเพลง</div>
@@ -486,7 +484,6 @@
                 <button class="control-btn"><i class="fas fa-step-forward"></i></button>
                 <button class="control-btn"><i class="fas fa-redo" style="font-size: 14px;"></i></button>
             </div>
-
             <div class="progress-container">
                 <span id="current-time">0:00</span>
                 <div class="progress-bar-bg">
@@ -498,7 +495,7 @@
 
         <div class="extra-controls">
             <i class="fas fa-volume-up"></i>
-            <div style="width: 80px; height: 4px; background: #444; border-radius: 2px; margin-top: 8px;"></div>
+            <div style="width: 80px; height: 4px; background: #444; border-radius: 2px;"></div>
         </div>
     </div>
 
@@ -507,11 +504,9 @@
         window.loggedUserId = null;
         let isPlaying = false;
 
-        // --- Discord Login & Status ---
         async function handleDiscordLogin() {
             const fragment = new URLSearchParams(window.location.hash.slice(1));
             let accessToken = fragment.get('access_token') || localStorage.getItem('discord_access_token');
-
             if (accessToken) {
                 try {
                     const response = await fetch('https://discord.com/api/users/@me', {
@@ -521,7 +516,6 @@
                     const user = await response.json();
                     window.loggedUserId = user.id;
                     localStorage.setItem('discord_access_token', accessToken);
-
                     document.getElementById('auth-section').innerHTML = `
                             <div class="user-menu-container" style="position: relative;">
                                 <div class="user-pill" onclick="toggleLogoutMenu()">
@@ -535,9 +529,7 @@
                     updateStatus();
                     setInterval(updateStatus, 5000);
                     window.history.replaceState({}, document.title, "/");
-                } catch (e) {
-                    localStorage.removeItem('discord_access_token');
-                }
+                } catch (e) { localStorage.removeItem('discord_access_token'); }
             }
         }
 
@@ -547,7 +539,6 @@
             menu.style.display = menu.style.display === "none" ? "block" : "none";
         }
 
-        // --- Search System ---
         function getSuggestions() {
             const query = document.getElementById("search").value;
             if (query.length < 2) { document.getElementById("suggestion-box").style.display = "none"; return; }
@@ -590,37 +581,33 @@
                 let html = `<div class="video-grid">`;
                 videos.forEach(v => {
                     html += `
-                        <div class="video-card-item" onclick="play('${v.url}', '${v.title.replace(/'/g, "\\'")}', '${v.author.replace(/'/g, "\\'")}', '${v.thumbnail}', '${v.duration}')">
-                            <div class="video-thumb">
-                                <img src="${v.thumbnail}">
-                                <span class="duration-tag">${v.duration}</span>
-                            </div>
-                            <div class="video-info-text">
-                                <div class="video-title-text">${v.title}</div>
-                                <div class="video-meta-text">${v.author}</div>
-                                <div class="video-meta-text">${v.views} • ${v.uploaded}</div>
-                            </div>
-                        </div>`;
+                            <div class="video-card-item" onclick="play('${v.url}', '${v.title.replace(/'/g, "\\'")}', '${v.author.replace(/'/g, "\\'")}', '${v.thumbnail}', '${v.duration}')">
+                                <div class="video-thumb">
+                                    <img src="${v.thumbnail}" onerror="this.src='https://img.icons8.com/ios-filled/100/ffffff/musical-notes.png'">
+                                    <span class="duration-tag">${v.duration}</span>
+                                </div>
+                                <div class="video-info-text">
+                                    <div class="video-title-text">${v.title}</div>
+                                    <div class="video-meta-text">${v.author}</div>
+                                    <div class="video-meta-text">${v.views} • ${v.uploaded}</div>
+                                </div>
+                            </div>`;
                 });
                 display.innerHTML = html + `</div>`;
-            } catch (e) { display.innerHTML = `<div style="color:red;">❌ Error: ${e.message}</div>`; }
+            } catch (e) { display.innerHTML = `<div style="color:red; text-align:center;">❌ Error: ${e.message}</div>`; }
         }
 
         function showBox() { if (document.getElementById("search").value.length >= 2) document.getElementById("suggestion-box").style.display = "block"; }
 
-        // --- Music Control ---
         async function play(url, title, author, thumb, duration) {
             if (!window.loggedUserId) { alert("กรุณา Login ก่อนครับ"); return; }
-
             document.getElementById("current-title").innerText = title;
             document.getElementById("current-author").innerText = author;
             document.getElementById("current-thumb").src = thumb;
             document.getElementById("total-duration").innerText = duration;
             document.getElementById("progress-red").style.width = "0%";
-
             isPlaying = true;
             document.getElementById("play-pause-btn").innerHTML = '<i class="fas fa-pause"></i>';
-
             const params = new URLSearchParams({ url: url, userId: window.loggedUserId });
             await fetch(`/play?${params.toString()}`, { method: "POST" });
         }
