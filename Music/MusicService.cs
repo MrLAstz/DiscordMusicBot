@@ -109,10 +109,10 @@ public class MusicService
 
     public object GetUsersInVoice(ulong userId)
     {
-        if (_discordClient == null)
-            return new { guild = "บอทไม่พร้อม", users = new List<object>() };
+        // 🚩 จุดที่ 1: เช็คว่าบอทเชื่อมต่อเสร็จหรือยัง ถ้ายังให้รีบคืนค่าออกไป ไม่ต้องไปวน Loop หา User
+        if (_discordClient == null || _discordClient.ConnectionState != ConnectionState.Connected)
+            return new { guild = "กำลังเชื่อมต่อ Discord...", users = new List<object>() };
 
-        // หา user จากทุก guild ที่บอทอยู่
         SocketGuildUser? user = null;
         SocketGuild? guild = null;
 
@@ -127,16 +127,18 @@ public class MusicService
             }
         }
 
-        if (user?.VoiceChannel == null || guild == null)
-        {
+        // 🚩 จุดที่ 2: ถ้าหา User ไม่เจอเลย (อาจเพราะบอทยังโหลด User เข้า Cache ไม่เสร็จ)
+        if (user == null || guild == null)
+            return new { guild = "กำลังโหลดข้อมูลสมาชิก...", users = new List<object>() };
+
+        if (user.VoiceChannel == null)
             return new { guild = "คุณไม่ได้อยู่ในห้องเสียง", users = new List<object>() };
-        }
 
         var channel = user.VoiceChannel;
 
-        // ✅ ใช้ VoiceStates จริง ๆ
+        // ✅ ส่วนนี้คุณแก้ถูกแล้ว (ใช้ guild.Users)
         var usersInRoom = guild.Users
-            .Where(u => u.VoiceChannel?.Id == channel.Id) // กรองเฉพาะคนที่อยู่ในห้องเดียวกับเรา
+            .Where(u => u.VoiceChannel?.Id == channel.Id)
             .Select(u => new
             {
                 name = u.GlobalName ?? u.Username,
