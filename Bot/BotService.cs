@@ -9,8 +9,6 @@ public class BotService
     private readonly DiscordSocketClient _client;
     private readonly string _token;
     private readonly MusicService _music;
-
-    // ✅ 1. เพิ่มการประกาศตัวแปร _handler ตรงนี้ครับ
     private readonly CommandHandler _handler;
 
     public BotService(string token, MusicService music)
@@ -23,22 +21,63 @@ public class BotService
             GatewayIntents = GatewayIntents.AllUnprivileged |
                              GatewayIntents.GuildMembers |
                              GatewayIntents.GuildPresences |
-                             GatewayIntents.MessageContent, // สำคัญ: ต้องมีอันนี้บอทถึงจะอ่านข้อความ !join ได้
+                             GatewayIntents.MessageContent,
             AlwaysDownloadUsers = true
         };
 
         _client = new DiscordSocketClient(config);
         _music.SetDiscordClient(_client);
 
-        // ✅ 2. สร้าง Instance ของ CommandHandler เพื่อให้ระบบคำสั่งเริ่มทำงาน
+        // สร้างระบบจัดการคำสั่ง
         _handler = new CommandHandler(_client, _music);
     }
 
     public async Task StartAsync()
     {
         _client.Log += LogAsync;
+
+        // ลงทะเบียน Event เมื่อบอทพร้อม ให้สร้างเมนู Slash Command
+        _client.Ready += OnReadyAsync;
+
         await _client.LoginAsync(TokenType.Bot, _token);
         await _client.StartAsync();
+    }
+
+    private async Task OnReadyAsync()
+    {
+        // รายการเมนูที่จะให้เด้งขึ้นมาตอนพิมพ์ /
+        var commands = new List<SlashCommandBuilder>
+        {
+            new SlashCommandBuilder()
+                .WithName("help")
+                .WithDescription("ดูเมนูคำสั่งทั้งหมดของบอท"),
+
+            new SlashCommandBuilder()
+                .WithName("join")
+                .WithDescription("ให้บอทเข้าห้องเสียงที่คุณอยู่"),
+
+            new SlashCommandBuilder()
+                .WithName("status")
+                .WithDescription("เช็คสถานะการเชื่อมต่อและสมาชิกในห้อง"),
+
+            new SlashCommandBuilder()
+                .WithName("play")
+                .WithDescription("เล่นเพลงจาก YouTube")
+                .AddOption("url", ApplicationCommandOptionType.String, "วางลิงก์ YouTube ที่นี่", isRequired: true)
+        };
+
+        try
+        {
+            foreach (var cmd in commands)
+            {
+                await _client.CreateGlobalApplicationCommandAsync(cmd.Build());
+            }
+            Console.WriteLine("✅ ลงทะเบียนเมนู Slash Commands สำเร็จ!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ ลงทะเบียนเมนูพลาด: {ex.Message}");
+        }
     }
 
     private Task LogAsync(LogMessage log)

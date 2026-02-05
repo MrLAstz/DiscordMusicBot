@@ -1,4 +1,5 @@
-﻿using Discord.WebSocket;
+﻿using Discord;
+using Discord.WebSocket;
 using DiscordMusicBot.Music;
 
 namespace DiscordMusicBot.Bot;
@@ -13,66 +14,66 @@ public class CommandHandler
         _client = client;
         _music = music;
 
-        _client.MessageReceived += HandleAsync;
+        // เปลี่ยนมาใช้ระบบ Slash Command
+        _client.SlashCommandExecuted += HandleSlashCommandAsync;
     }
 
-    private async Task HandleAsync(SocketMessage msg)
+    private async Task HandleSlashCommandAsync(SocketSlashCommand command)
     {
-        if (msg.Author.IsBot || string.IsNullOrEmpty(msg.Content)) return;
+        var user = command.User as SocketGuildUser;
+        var channel = user?.VoiceChannel;
 
         try
         {
-            if (msg.Author is not SocketGuildUser user)
-                return;
+            switch (command.Data.Name)
+            {
+                case "help":
+                    var embed = new EmbedBuilder()
+                        .WithTitle("🎵 MrLastBot - เมนูคำสั่ง")
+                        .WithDescription("เลือกใช้งานคำสั่งผ่านการพิมพ์ `/` ได้เลยครับ")
+                        .WithColor(Color.Blue)
+                        .AddField("🚀 พื้นฐาน", "`/join` : เข้าห้องเสียง\n`/status` : ดูสถานะ")
+                        .AddField("🎶 เพลง", "`/play [url]` : เล่นเพลง YouTube")
+                        .AddField("🌐 Dashboard", "[คลิกเพื่อเปิดหน้าเว็บควบคุม](https://your-app.railway.app)")
+                        .WithFooter(f => f.Text = "หากเมนูไม่ขึ้น ให้ลองปิด-เปิด Discord ใหม่")
+                        .WithCurrentTimestamp()
+                        .Build();
+                    await command.RespondAsync(embed: embed);
+                    break;
 
-            var channel = user.VoiceChannel;
-            var content = msg.Content.Trim();
+                case "join":
+                    if (channel == null)
+                    {
+                        await command.RespondAsync("❌ คุณต้องเข้าห้องเสียงก่อนสั่งครับ", ephemeral: true);
+                        return;
+                    }
+                    await _music.JoinAsync(channel);
+                    await command.RespondAsync($"✅ เข้าไปที่ห้อง **{channel.Name}** เรียบร้อย!");
+                    break;
 
-            if (content == "!join")
-            {
-                if (channel == null)
-                {
-                    await msg.Channel.SendMessageAsync("❌ คุณต้องเข้าห้องเสียงก่อนสั่งครับ");
-                    return;
-                }
-                await _music.JoinAsync(channel);
-                await msg.Channel.SendMessageAsync($"✅ เข้าไปที่ห้อง **{channel.Name}** แล้ว!");
-            }
-            else if (content.StartsWith("!play "))
-            {
-                var url = content.Substring(6).Trim();
-                if (string.IsNullOrEmpty(url))
-                {
-                    await msg.Channel.SendMessageAsync("❌ ใส่ลิงก์ด้วยครับ เช่น `!play https://...` ");
-                    return;
-                }
-                if (channel == null)
-                {
-                    await msg.Channel.SendMessageAsync("❌ เข้าห้องเสียงก่อนนะ!");
-                    return;
-                }
-                await msg.Channel.SendMessageAsync("🎵 กำลังเริ่มเล่นเพลง...");
-                await _music.PlayByUserIdAsync(user.Id, url);
-            }
-            else if (content == "!status")
-            {
-                var statusObj = await _music.GetUsersInVoice(user.Id);
-                var guildInfo = statusObj.GetType().GetProperty("guild")?.GetValue(statusObj, null);
-                await msg.Channel.SendMessageAsync($"📍 สถานะ: **{guildInfo}**");
-            }
-            else if (content == "!help")
-            {
-                // แก้ไขเครื่องหมายคำพูดและโครงสร้าง String ตรงนี้ครับ
-                string helpText = "ℹ️ **คำสั่งที่มีตอนนี้:**\n" +
-                                 "- `!join` : ให้บอทเข้าห้องเสียง\n" +
-                                 "- `!play [URL]` : เล่นเพลงจาก YouTube\n" +
-                                 "- `!status` : เช็คสถานะปัจจุบัน";
-                await msg.Channel.SendMessageAsync(helpText);
+                case "play":
+                    if (channel == null)
+                    {
+                        await command.RespondAsync("❌ เข้าห้องเสียงก่อนถึงจะฟังเพลงได้นะ", ephemeral: true);
+                        return;
+                    }
+                    var url = command.Data.Options.First().Value.ToString();
+                    await command.RespondAsync($"🎵 กำลังเริ่มเล่นเพลง: {url}");
+                    await _music.PlayByUserIdAsync(user.Id, url!);
+                    break;
+
+                case "status":
+                    var statusObj = await _music.GetUsersInVoice(user.Id);
+                    var guildInfo = statusObj.GetType().GetProperty("guild")?.GetValue(statusObj, null);
+                    await command.RespondAsync($"📍 สถานะตอนนี้: **{guildInfo}**");
+                    break;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"🔥 Command error: {ex.Message}");
+            Console.WriteLine($"🔥 Command Error: {ex.Message}");
+            if (!command.HasResponded)
+                await command.RespondAsync("⚠️ เกิดข้อผิดพลาดในการประมวลผลคำสั่ง");
         }
     }
 }
