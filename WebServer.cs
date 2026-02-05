@@ -59,20 +59,18 @@ public static class WebServer
         // ✅ 3. ส่วน status คงเดิมไว้เพื่อให้หน้าเว็บดึงข้อมูลได้
         app.MapGet("/status", (HttpContext context) =>
         {
-            // ดึง userId จาก Query String ที่ส่งมาจากหน้าเว็บ
+            // รับ userId จากหน้าเว็บ (ที่ส่งมาจาก window.loggedUserId)
             string? userIdStr = context.Request.Query["userId"];
 
             if (ulong.TryParse(userIdStr, out ulong userId))
             {
-                // ส่ง userId เข้าไปในฟังก์ชัน (แก้ Error CS7036)
+                // ส่ง userId ที่ได้ให้ MusicService ไปจัดการหาห้อง
                 var statusData = music.GetUsersInVoice(userId);
                 return Results.Ok(statusData);
             }
 
-            // ถ้าไม่มี userId (เช่น ยังไม่ได้ Login) ให้ส่งค่าว่างกลับไป
             return Results.Ok(new { guild = "กรุณา Login", users = new List<object>() });
         });
-
         app.Run();
     }
 }
