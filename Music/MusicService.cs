@@ -135,13 +135,11 @@ public class MusicService
         var channel = user.VoiceChannel;
 
         // ✅ ใช้ VoiceStates จริง ๆ
-        var usersInRoom = guild.VoiceStates
-            .Where(vs => vs.Value.VoiceChannel?.Id == channel.Id)
-            .Select(vs => vs.Value.User)
-            .Where(u => u != null)
+        var usersInRoom = guild.Users
+            .Where(u => u.VoiceChannel?.Id == channel.Id) // กรองเฉพาะคนที่อยู่ในห้องเดียวกับเรา
             .Select(u => new
             {
-                name = u!.GlobalName ?? u.Username,
+                name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
                 status = u.Status.ToString().ToLower()
             })
