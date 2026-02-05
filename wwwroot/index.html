@@ -97,7 +97,6 @@
         async function updateStatus() {
             try {
                 const res = await fetch("/status");
-                if (!res.ok) throw new Error();
                 const data = await res.json();
                 document.getElementById("guild-name").innerText = data.guild;
             } catch (e) {

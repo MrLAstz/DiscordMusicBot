@@ -10,33 +10,34 @@ public static class WebServer
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // บังคับให้ Kestrel รันบนพอร์ตที่ Railway กำหนด
+        // ✅ 1. ต้องเพิ่มบรรทัดนี้ เพื่อให้ API รู้จักตัวแปร music
+        builder.Services.AddSingleton(music);
+
         builder.WebHost.UseUrls($"http://*:{port}");
 
         var app = builder.Build();
 
-        // ให้แสดงไฟล์ index.html จากโฟลเดอร์ wwwroot
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
-        // API สำหรับหน้าเว็บเรียกใช้
         app.MapPost("/join", async () =>
         {
-            await music.JoinLastAsync(); // ใช้ Method ที่คุณมี
+            await music.JoinLastAsync();
             return Results.Ok(new { message = "Joined" });
         });
 
         app.MapPost("/play", async (string url) =>
         {
-            // ตรงนี้ถ้า url มาเป็นคำค้นหา ต้องไปผ่าน YoutubeService ก่อน
             await music.PlayLastAsync(url);
             return Results.Ok(new { message = "Playing" });
         });
 
-        app.MapGet("/status", (MusicService music) =>
+        // ✅ 2. แก้ตรงนี้ให้รับ music เข้ามาให้ถูกทาง (หรือจะใช้ music ตัวนอกเลยก็ได้)
+        app.MapGet("/status", () =>
         {
             return Results.Ok(new { guild = music.CurrentGuildName });
         });
+
         app.Run();
     }
 }
