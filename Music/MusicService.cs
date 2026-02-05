@@ -109,39 +109,29 @@ public class MusicService
 
     public object GetUsersInVoice(ulong userId)
     {
-        if (_discordClient == null)
-            return new { guild = "บอทไม่พร้อม", users = new List<object>() };
+        if (_discordClient == null) return new { guild = "บอทไม่พร้อม", users = new List<object>() };
 
-        try
+        // ค้นหาจากทุุก Guild ที่บอทและผู้ใช้อยู่ร่วมกัน
+        foreach (var guild in _discordClient.Guilds)
         {
-            // เจาะจงหา User จาก ID ทั่วทั้งเซิร์ฟเวอร์ที่บอทอยู่ (แบบรวดเร็ว)
-            var user = _discordClient.GetUser(userId);
+            var user = guild.GetUser(userId); // ดึงข้อมูล user ใน guild นี้
 
-            // ตรวจสอบ VoiceState ว่ากำลังนั่งอยู่ใน Voice Channel ไหน
-            var voiceState = (user as SocketGuildUser)?.VoiceState;
-
-            if (voiceState?.VoiceChannel != null)
+            if (user?.VoiceChannel != null)
             {
-                var targetChannel = voiceState.Value.VoiceChannel;
-                this.CurrentGuildName = targetChannel.Guild.Name;
-                _lastChannel = targetChannel; // จำห้องนี้ไว้สำหรับคำสั่ง Play
-
-                // ดึงรายชื่อเฉพาะคนที่อยู่ใน Channel เดียวกัน
-                var userList = targetChannel.Users.Select(u => new
+                var channel = user.VoiceChannel;
+                return new
                 {
-                    name = u.GlobalName ?? u.Username,
-                    avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                    status = u.Status.ToString().ToLower()
-                }).ToList();
-
-                return new { guild = targetChannel.Guild.Name, users = userList };
+                    guild = guild.Name,
+                    users = channel.Users.Select(u => new {
+                        name = u.GlobalName ?? u.Username,
+                        avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
+                        status = u.Status.ToString().ToLower()
+                    }).ToList()
+                };
             }
+        }
 
-            return new { guild = "คุณไม่ได้อยู่ในห้องเสียง", users = new List<object>() };
-        }
-        catch
-        {
-            return new { guild = "Error", users = new List<object>() };
-        }
+        // หากหาไม่เจอในทุก Guild ที่บอทอยู่
+        return new { guild = "คุณไม่ได้อยู่ในห้องเสียง", users = new List<object>() };
     }
 }
