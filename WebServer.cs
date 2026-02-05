@@ -36,7 +36,7 @@ public static class WebServer
             try
             {
                 // ส่ง offset (จุดเริ่มต้นค้นหา) เข้าไปใน Method (เริ่มต้นที่ 0 ถ้าไม่มีการส่งมา)
-                var results = await yt.SearchVideosAsync(q, 12, offset ?? 0);
+                var results = await yt.SearchVideosAsync(q, 18, offset ?? 0);
                 return Results.Ok(results);
             }
             catch (Exception ex)

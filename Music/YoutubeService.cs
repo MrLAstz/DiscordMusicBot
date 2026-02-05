@@ -12,7 +12,7 @@ public class YoutubeService
 
     // --- ส่วนที่เพิ่มใหม่: สำหรับดึงรายการวิดีโอไปแสดงบน UI ---
     // เพิ่ม parameter 'offset' เพื่อบอกว่าให้เริ่มโหลดที่ลำดับที่เท่าไหร่
-    public async Task<List<object>> SearchVideosAsync(string query, int limit = 12, int offset = 0)
+    public async Task<List<object>> SearchVideosAsync(string query, int limit = 18, int offset = 0)
     {
         var results = new List<object>();
         var searchResults = _youtube.Search.GetVideosAsync(query);
