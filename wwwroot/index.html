@@ -110,29 +110,7 @@
                 background: #3e3e3e;
             }
 
-        /* Auth & Buttons */
-        .nav-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .btn-join {
-            background: #333;
-            color: white;
-            border: 1px solid #444;
-            padding: 10px 18px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 0.9em;
-            font-weight: 500;
-            transition: 0.2s;
-        }
-
-            .btn-join:hover {
-                background: #444;
-            }
-
+        /* Auth Button */
         .discord-login-btn {
             background: var(--discord-blue);
             text-decoration: none;
@@ -145,7 +123,12 @@
             font-size: 0.9em;
             font-weight: bold;
             border: none;
+            transition: 0.2s;
         }
+
+            .discord-login-btn:hover {
+                background: #4752c4;
+            }
 
         .user-pill {
             display: flex;
@@ -155,6 +138,7 @@
             padding: 6px 14px;
             border-radius: 20px;
             border: 1px solid #444;
+            cursor: pointer;
         }
 
         .nav-avatar {
@@ -289,21 +273,23 @@
             <div id="suggestion-box"></div>
         </div>
 
-        <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app%2F&scope=identify+guilds" class="discord-login-btn">
-            <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
-            Login
-        </a>
+        <div id="auth-section">
+            <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app%2F&scope=identify+guilds" class="discord-login-btn">
+                <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
+                Login
+            </a>
+        </div>
     </nav>
 
     <div class="main-container">
         <div class="sidebar">
             <div class="status-card">
                 <div class="status-title">📍 Current Server</div>
-                <div id="guild-name" class="guild-name">กำลังโหลด...</div>
+                <div id="guild-name" class="guild-name">กรุณา Login</div>
             </div>
             <div class="status-card">
                 <div class="status-title">👥 Voice Members</div>
-                <div id="user-list"><i style="color: #666;">ไม่พบข้อมูล</i></div>
+                <div id="user-list"><i style="color: #666;">เข้าสู่ระบบเพื่อดูสมาชิก</i></div>
             </div>
         </div>
 
@@ -318,7 +304,7 @@
         let timeout = null;
         window.loggedUserId = null;
 
-        // --- 1. ระบบ Discord Login (OAuth2) ---
+        // --- 1. ระบบ Discord Login ---
         async function handleDiscordLogin() {
             const fragment = new URLSearchParams(window.location.hash.slice(1));
             const accessToken = fragment.get('access_token');
@@ -330,36 +316,45 @@
                     });
                     const user = await response.json();
 
-                    document.getElementById('auth-section').innerHTML = `
-                                <div class="user-pill">
-                                    <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
-                                         class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                    <span class="user-name-text">${user.global_name || user.username}</span>
-                                </div>
-                            `;
                     window.loggedUserId = user.id;
 
-                    // ✅ หลังจาก Login สำเร็จ ให้เริ่มดึง Status ทันที
+                    // เปลี่ยนปุ่ม Login เป็นโปรไฟล์
+                    document.getElementById('auth-section').innerHTML = `
+                            <div class="user-menu-container" style="position: relative;">
+                                <div class="user-pill" onclick="toggleLogoutMenu()">
+                                    <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
+                                         class="nav-avatar"
+                                         onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                    <span style="color: white;">${user.global_name || user.username}</span>
+                                    <i style="color: #ccc; font-size: 10px;">▼</i>
+                                </div>
+                                <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; overflow: hidden; z-index: 100;">
+                                    <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left; font-size: 14px;">
+                                         🚪 Logout
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+
                     updateStatus();
                     setInterval(updateStatus, 3000);
-
                     window.history.replaceState({}, document.title, "/");
-                } catch (e) {
-                    console.error("Login Error:", e);
-                    showLoginPrompt();
-                }
-            } else {
-                showLoginPrompt();
+
+                } catch (e) { console.error("Login Error:", e); }
             }
         }
 
-        // ฟังก์ชันช่วยแสดงสถานะตอนยังไม่ได้ Login
-        function showLoginPrompt() {
-            document.getElementById("guild-name").innerText = "กรุณา Login ก่อน";
-            document.getElementById("user-list").innerHTML = `<div style="color:#666; padding:10px;">เข้าสู่ระบบเพื่อดูสมาชิกในห้อง</div>`;
+        function toggleLogoutMenu() {
+            const menu = document.getElementById("logout-menu");
+            menu.style.display = menu.style.display === "none" ? "block" : "none";
         }
 
-        // --- 2. ระบบค้นหาและ Suggestion --- (เหมือนเดิม)
+        function logout() {
+            window.loggedUserId = null;
+            location.href = "/";
+        }
+
+        // --- 2. ระบบค้นหา (YouTube Suggestion) ---
         function getSuggestions() {
             const query = document.getElementById("search").value;
             const box = document.getElementById("suggestion-box");
@@ -380,10 +375,10 @@
             if (!suggestions?.length) { box.style.display = "none"; return; }
 
             box.innerHTML = suggestions.map(item => `
-                        <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
-                            <i style="color: #888;">🔍</i> ${item[0]}
-                        </div>
-                    `).join('');
+                    <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
+                        <i style="color: #888;">🔍</i> ${item[0]}
+                    </div>
+                `).join('');
             box.style.display = "block";
         }
 
@@ -398,24 +393,21 @@
             if (!q) return;
             document.getElementById("suggestion-box").style.display = "none";
             document.getElementById("player-display").innerHTML = `
-                        <div class="player-card">
-                            <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
-                            <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
-                            <button class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
-                        </div>
-                    `;
+                    <div class="player-card">
+                        <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
+                        <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
+                        <button class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
+                    </div>
+                `;
         }
 
-        // --- 3. ระบบควบคุมบอท ---
+        // --- 3. บงการบอท (Stateless) ---
         async function updateStatus() {
-            // ✅ ถ้าไม่มี ID ไม่ต้องยิงไปถามบอท (ช่วยให้บอทไม่จำและประหยัด Resource)
             if (!window.loggedUserId) return;
-
             try {
-                // ส่ง userId ไปด้วยเพื่อให้บอทรู้ว่าต้องเช็ค Status ของ Server ไหนที่คุณอยู่
                 const res = await fetch(`/status?userId=${window.loggedUserId}`);
                 const data = await res.json();
-                document.getElementById("guild-name").innerText = data.guild || "ไม่ได้เชื่อมต่อ";
+                document.getElementById("guild-name").innerText = data.guild || "ไม่ได้เชื่อมต่อเสียง";
 
                 const userList = document.getElementById("user-list");
                 const users = data.users || [];
@@ -425,7 +417,6 @@
                         if (u.status === "online") color = "#3ba55c";
                         if (u.status === "idle") color = "#faa61a";
                         if (u.status === "dnd") color = "#ed4245";
-
                         return `
                                 <div class="user-item">
                                     <div class="avatar-wrapper">
@@ -436,37 +427,27 @@
                                 </div>`;
                     }).join('');
                 } else {
-                    userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้อง</div>`;
+                    userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้องเสียง</div>`;
                 }
-            } catch (e) { console.error("Update Status Error:", e); }
+            } catch (e) { console.error("Status Error:", e); }
         }
 
         async function play(query) {
-            if (!window.loggedUserId) {
-                alert("กรุณา Login ก่อนครับ");
-                return;
-            }
-            const params = new URLSearchParams({
-                url: query,
-                userId: window.loggedUserId
-            });
+            if (!window.loggedUserId) { alert("กรุณา Login ก่อนครับ"); return; }
+            const params = new URLSearchParams({ url: query, userId: window.loggedUserId });
             await fetch(`/play?${params.toString()}`, { method: "POST" });
         }
 
-        async function join() {
-            if (!window.loggedUserId) {
-                alert("กรุณา Login ก่อนครับ");
-                return;
-            }
-            // บอทจะวิ่งไปหาห้องที่คุณอยู่ ณ ตอนนั้นทันที
-            await fetch(`/join?userId=${window.loggedUserId}`, { method: "POST" });
-        }
-
-        // เริ่มต้นระบบเฉพาะส่วน Login
+        // เริ่มต้น
         handleDiscordLogin();
 
+        // ปิดเมนูเมื่อคลิกข้างนอก
         document.addEventListener("click", (e) => {
             if (!e.target.closest('.search-container')) document.getElementById("suggestion-box").style.display = "none";
+            if (!e.target.closest('.user-menu-container')) {
+                const menu = document.getElementById("logout-menu");
+                if (menu) menu.style.display = "none";
+            }
         });
     </script>
 </body>
