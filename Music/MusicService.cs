@@ -62,17 +62,18 @@ public class MusicService
     // ✅ แก้ไข: ดึงรายชื่อผ่าน DiscordSocketClient เพื่อความแม่นยำ
     public object GetUsersInVoice()
     {
-        if (_discordClient == null || _currentChannelId == null) return new List<object>();
+        if (_discordClient == null || _currentChannelId == null)
+            return new { guild = "ไม่ได้เชื่อมต่อ", users = new List<object>() };
 
         try
         {
-            // 1. ดึง Channel ผ่าน Client หลัก
             var voiceChannel = _discordClient.GetChannel(_currentChannelId.Value) as SocketVoiceChannel;
+            if (voiceChannel == null)
+                return new { guild = "ไม่พบห้อง", users = new List<object>() };
 
-            if (voiceChannel == null) return new List<object>();
+            // ✅ ดึงชื่อ Server สดๆ ตรงนี้เลย
+            this.CurrentGuildName = voiceChannel.Guild.Name;
 
-            // 2. กรองเฉพาะคนที่ VoiceChannel ID ตรงกับห้องที่บอทอยู่ปัจจุบันเท่านั้น
-            // วิธีนี้จะชัวร์กว่าการใช้ voiceChannel.Users ตรงๆ ในบางกรณี
             var realUsers = voiceChannel.Users
                 .Where(u => u.VoiceChannel != null && u.VoiceChannel.Id == _currentChannelId.Value)
                 .Select(u => new
@@ -82,12 +83,13 @@ public class MusicService
                     status = u.Status.ToString().ToLower()
                 }).ToList();
 
-            return realUsers;
+            // คืนค่าออกไปทั้งชื่อ Guild และรายชื่อ Users
+            return new { guild = this.CurrentGuildName, users = realUsers };
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[Error] GetUsersInVoice: {ex.Message}");
-            return new List<object>();
+            return new { guild = "Error", users = new List<object>() };
         }
     }
 }

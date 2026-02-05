@@ -37,10 +37,13 @@ public static class WebServer
         // ✅ 3. ใช้ MapGet อันเดียวที่ส่งข้อมูลครบๆ (รวมร่างแล้ว)
         app.MapGet("/status", () =>
         {
+            // ต้องเรียก GetUsersInVoice() ก่อนเพื่อให้ CurrentGuildName ถูกอัปเดต
+            var users = music.GetUsersInVoice();
+
             return Results.Ok(new
             {
-                guild = music.CurrentGuildName,
-                users = music.GetUsersInVoice() // ดึงรายชื่อคนในห้อง
+                guild = music.CurrentGuildName, // ส่งชื่อเซิร์ฟเวอร์
+                users = users                 // ส่งรายชื่อคน
             });
         });
 

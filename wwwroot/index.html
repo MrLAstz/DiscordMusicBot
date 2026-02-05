@@ -366,12 +366,25 @@
                 const res = await fetch("/status");
                 const data = await res.json();
 
+                // 1. อัปเดตชื่อ Guild (Server Name)
+                // ตรวจสอบว่ามีข้อมูลส่งมาหรือไม่ ถ้าไม่มีให้ใช้ค่าเดิม
+                const guildElement = document.getElementById("guild-name");
+                if (data.guild) {
+                    guildElement.innerText = data.guild;
+                } else {
+                    guildElement.innerText = "ไม่ได้เชื่อมต่อ";
+                }
+
+                // 2. อัปเดตรายชื่อ Users
                 const userList = document.getElementById("user-list");
 
-                if (data.users && data.users.length > 0) {
-                    userList.innerHTML = data.users.map(u => {
-                        // เลือกสีจุดสถานะ
-                        let color = "#747f8d"; // offline
+                // ตรวจสอบว่ารายชื่อ users อยู่ใน data.users หรือ data กันแน่
+                const users = Array.isArray(data.users) ? data.users : (data.users?.users || []);
+
+                if (users.length > 0) {
+                    userList.innerHTML = users.map(u => {
+                        // กำหนดสีตามสถานะ
+                        let color = "#747f8d"; // offline/invisible
                         if (u.status === "online") color = "#3ba55c";
                         if (u.status === "idle") color = "#faa61a";
                         if (u.status === "dnd") color = "#ed4245";
@@ -379,17 +392,18 @@
                         return `
                     <div class="user-item">
                         <div class="avatar-wrapper">
-                            <img src="${u.avatar}" class="user-avatar">
+                            <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
                             <div class="status-dot" style="background-color: ${color}"></div>
                         </div>
                         <span class="user-name" style="color:#dbdee1;">${u.name}</span>
-                    </div>
-                `;
+                    </div>`;
                     }).join('');
                 } else {
                     userList.innerHTML = `<div style="color:#666; padding:10px;">ห้องว่างเปล่า</div>`;
                 }
-            } catch (e) { console.log(e); }
+            } catch (e) {
+                console.error("Fetch error:", e);
+            }
         }
 
         async function join() {
