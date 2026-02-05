@@ -9,6 +9,7 @@
             --yt-red: #ff0000;
             --bg-dark: #0f0f0f;
             --card-bg: #1e1e1e;
+            --suggest-bg: #282828; /* สีกล่องแนะนำตามรูป 2 */
             --text-main: #ffffff;
             --text-dim: #aaa;
         }
@@ -42,13 +43,17 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            cursor: pointer;
+        }
+
+        /* Search Container สำหรับ Custom Suggestions */
+        .search-container {
+            flex: 0 1 500px;
+            position: relative;
         }
 
         .search-area {
-            flex: 0 1 500px;
-            position: relative;
             display: flex;
+            width: 100%;
         }
 
         input#search {
@@ -62,11 +67,6 @@
             font-size: 15px;
         }
 
-            input#search:focus {
-                border-color: #444;
-                background: #000;
-            }
-
         .search-btn {
             padding: 10px 25px;
             border-radius: 0 24px 24px 0;
@@ -77,18 +77,48 @@
             border-left: none;
         }
 
-            .search-btn:hover {
-                background: #333;
+        /* กล่องรายการแนะนำ (แก้ตามรูปที่ 2) */
+        #suggestion-box {
+            position: absolute;
+            top: 105%;
+            left: 0;
+            right: 0;
+            background: var(--suggest-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 1000;
+            overflow: hidden;
+            padding: 8px 0;
+        }
+
+        .suggestion-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: white;
+            font-size: 16px; /* ขนาดใหญ่ขึ้นตามรูป */
+            transition: background 0.2s;
+        }
+
+            .suggestion-item:hover {
+                background: #3e3e3e;
             }
 
-        /* Main Content Layout */
+            .suggestion-item i {
+                color: #888;
+                font-size: 14px;
+            }
+
+        /* Layout อื่นๆ */
         .main-container {
             display: flex;
             flex: 1;
             overflow: hidden;
         }
 
-        /* Sidebar */
         .sidebar {
             width: 280px;
             background: var(--bg-dark);
@@ -109,7 +139,6 @@
             font-size: 0.8em;
             color: var(--text-dim);
             text-transform: uppercase;
-            letter-spacing: 1px;
             margin-bottom: 8px;
         }
 
@@ -128,10 +157,6 @@
             font-size: 0.95em;
         }
 
-            .user-item:last-child {
-                border-bottom: none;
-            }
-
         .status-dot {
             width: 8px;
             height: 8px;
@@ -139,7 +164,6 @@
             border-radius: 50%;
         }
 
-        /* Player Area */
         .content {
             flex: 1;
             padding: 40px;
@@ -193,10 +217,12 @@
 
     <nav>
         <div class="logo">🔴 <span>YT Music Bot</span></div>
-        <div class="search-area">
-            <input id="search" placeholder="ค้นหาเพลง..." list="suggestions" oninput="getSuggestions()" onkeypress="if(event.key==='Enter') search()">
-            <datalist id="suggestions"></datalist>
-            <button class="search-btn" onclick="search()">🔍</button>
+        <div class="search-container">
+            <div class="search-area">
+                <input id="search" placeholder="ค้นหาเพลง..." autocomplete="off" oninput="getSuggestions()" onfocus="showBox()" onkeypress="if(event.key==='Enter') search()">
+                <button class="search-btn" onclick="search()">🔍</button>
+            </div>
+            <div id="suggestion-box"></div>
         </div>
         <button class="btn-join" onclick="join()">Connect Voice</button>
     </nav>
@@ -207,12 +233,9 @@
                 <div class="status-title">📍 Connected Server</div>
                 <div id="guild-name" class="guild-name">กำลังโหลด...</div>
             </div>
-
             <div class="status-card">
                 <div class="status-title">👥 In Voice Channel</div>
-                <div id="user-list">
-                    <i style="color: #666;">ไม่มีข้อมูลสมาชิก</i>
-                </div>
+                <div id="user-list"><i style="color: #666;">ไม่มีข้อมูลสมาชิก</i></div>
             </div>
         </div>
 
@@ -226,10 +249,15 @@
     <script>
         let timeout = null;
 
-        // 1. YouTube Auto-complete
+        // 1. จัดการ Suggestion Box (แก้ไขใหม่หมด)
         function getSuggestions() {
             const query = document.getElementById("search").value;
-            if (query.length < 2) return;
+            const box = document.getElementById("suggestion-box");
+
+            if (query.length < 2) {
+                box.style.display = "none";
+                return;
+            }
 
             clearTimeout(timeout);
             timeout = setTimeout(() => {
@@ -242,25 +270,51 @@
 
         function handleSuggestions(data) {
             const suggestions = data[1];
-            const datalist = document.getElementById("suggestions");
-            datalist.innerHTML = "";
-            suggestions.forEach(item => {
-                const option = document.createElement("option");
-                option.value = item[0];
-                datalist.appendChild(option);
-            });
+            const box = document.getElementById("suggestion-box");
+
+            if (!suggestions || suggestions.length === 0) {
+                box.style.display = "none";
+                return;
+            }
+
+            box.innerHTML = suggestions.map(item => `
+                    <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
+                        <i>🔍</i> ${item[0]}
+                    </div>
+                `).join('');
+
+            box.style.display = "block";
         }
 
-        // 2. Search & UI Update (ฟังก์ชันเดียวจบ ปรับขนาดแล้ว)
+        function selectSuggestion(val) {
+            document.getElementById("search").value = val;
+            document.getElementById("suggestion-box").style.display = "none";
+            search(); // ค้นหาทันทีเมื่อเลือก
+        }
+
+        function showBox() {
+            if (document.getElementById("search").value.length >= 2) {
+                document.getElementById("suggestion-box").style.display = "block";
+            }
+        }
+
+        // ปิดกล่องเมื่อคลิกข้างนอก
+        document.addEventListener("click", function (e) {
+            if (!e.target.closest('.search-container')) {
+                document.getElementById("suggestion-box").style.display = "none";
+            }
+        });
+
+        // 2. Search & UI Update
         function search() {
             const q = document.getElementById("search").value;
+            const box = document.getElementById("suggestion-box");
             if (!q) return;
+            box.style.display = "none";
 
             document.getElementById("player-display").innerHTML = `
                     <div class="player-card">
-                        <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px; border: 1px dashed #444;">
-                            🎵
-                        </div>
+                        <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px; border: 1px dashed #444;">🎵</div>
                         <h2 style="margin: 0 0 10px 0; color: white; font-size: 26px;">${q}</h2>
                         <p style="color: #aaa; margin-bottom: 30px; font-size: 16px;">พร้อมสำหรับการเล่นบน Discord</p>
                         <button class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลงนี้</button>
@@ -268,23 +322,16 @@
                 `;
         }
 
-        // 3. API Calls
+        // 3. API Calls (ส่วนที่เหลือคงเดิม)
         async function updateStatus() {
             try {
                 const res = await fetch("/status");
                 if (!res.ok) return;
                 const data = await res.json();
-
                 document.getElementById("guild-name").innerText = data.guild || "ไม่ได้อยู่ในห้อง";
-
                 const userList = document.getElementById("user-list");
                 if (data.users && data.users.length > 0) {
-                    userList.innerHTML = data.users.map(u => `
-                            <div class="user-item">
-                                <div class="status-dot"></div>
-                                <span>${u}</span>
-                            </div>
-                        `).join('');
+                    userList.innerHTML = data.users.map(u => `<div class="user-item"><div class="status-dot"></div><span>${u}</span></div>`).join('');
                 } else {
                     userList.innerHTML = `<i style="color: #666;">ไม่มีใครอยู่ในห้อง</i>`;
                 }
