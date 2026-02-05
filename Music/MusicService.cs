@@ -66,19 +66,23 @@ public class MusicService
 
         try
         {
-            // ดึง Channel แบบสดๆ จาก Client หลัก (จะไม่อ้างอิง Object เก่าใน Cache)
+            // 1. ดึง Channel ผ่าน Client หลัก
             var voiceChannel = _discordClient.GetChannel(_currentChannelId.Value) as SocketVoiceChannel;
 
             if (voiceChannel == null) return new List<object>();
 
-            // ดึงรายชื่อเฉพาะคนที่อยู่ในห้องนั้นจริงๆ
-            return voiceChannel.Users.Select(u => new
-            {
-                name = u.GlobalName ?? u.Username,
-                avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                // แสดงสถานะ Online/Idle/Dnd
-                status = u.Status.ToString().ToLower()
-            }).ToList();
+            // 2. กรองเฉพาะคนที่ VoiceChannel ID ตรงกับห้องที่บอทอยู่ปัจจุบันเท่านั้น
+            // วิธีนี้จะชัวร์กว่าการใช้ voiceChannel.Users ตรงๆ ในบางกรณี
+            var realUsers = voiceChannel.Users
+                .Where(u => u.VoiceChannel != null && u.VoiceChannel.Id == _currentChannelId.Value)
+                .Select(u => new
+                {
+                    name = u.GlobalName ?? u.Username,
+                    avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
+                    status = u.Status.ToString().ToLower()
+                }).ToList();
+
+            return realUsers;
         }
         catch (Exception ex)
         {
