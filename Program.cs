@@ -6,7 +6,7 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        Console.WriteLine("🚀 Starting application");
+        Console.WriteLine("🚀 Starting app");
 
         var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
         if (string.IsNullOrWhiteSpace(token))
@@ -17,15 +17,14 @@ class Program
 
         var music = new MusicService();
 
-        // 🌐 Web (ต้องขึ้นก่อน)
+        // 🌐 Web ต้องรันแบบ background
         _ = Task.Run(() => WebServer.StartAsync(args, music));
 
-        // 🤖 Bot
+        // 🤖 Discord Bot
         var bot = new BotService(token, music);
         await bot.StartAsync();
 
-        Console.WriteLine("✅ Bot + Web started");
-
+        Console.WriteLine("✅ Bot + Web running");
         await Task.Delay(-1);
     }
 }

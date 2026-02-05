@@ -1,6 +1,6 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Hosting;
-using DiscordMusicBot.Music;
+﻿using DiscordMusicBot.Music;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.FileProviders;
 
 namespace DiscordMusicBot.Web;
 
@@ -10,21 +10,29 @@ public static class WebServer
     {
         try
         {
+            var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+            Console.WriteLine($"🌐 PORT = {port}");
+
             var builder = WebApplication.CreateBuilder(args);
+
+            // ✅ ชี้ไปที่ wwwroot
+            builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
             var app = builder.Build();
 
-            app.MapGet("/", () => "✅ Web server is running");
-
-            var port = Environment.GetEnvironmentVariable("PORT");
-            if (string.IsNullOrEmpty(port))
+            // ✅ เปิด static files
+            app.UseStaticFiles(new StaticFileOptions
             {
-                Console.WriteLine("❌ PORT not found, defaulting to 8080");
-                port = "8080";
-            }
+                FileProvider = new PhysicalFileProvider(
+                    Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
+                RequestPath = ""
+            });
 
-            Console.WriteLine($"🌐 Listening on 0.0.0.0:{port}");
+            // health check
+            app.MapGet("/health", () => "OK");
 
-            await app.RunAsync($"http://0.0.0.0:{port}");
+            Console.WriteLine("✅ Web server started");
+            await app.RunAsync();
         }
         catch (Exception ex)
         {
