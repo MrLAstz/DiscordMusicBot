@@ -53,4 +53,14 @@ public class MusicService
         await stream.CopyToAsync(discord);
         await discord.FlushAsync();
     }
+
+    public List<string> GetUsersInVoice()
+    {
+        if (_lastChannel == null) return new List<string>();
+
+        // ดึงชื่อของทุกคนในห้อง (รวมถึงบอทด้วย)
+        return _lastChannel.GetUsersAsync().FlattenAsync().Result
+            .Select(u => u.GlobalName ?? u.Username)
+            .ToList();
+    }
 }

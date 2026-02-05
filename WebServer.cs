@@ -10,13 +10,15 @@ public static class WebServer
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // ✅ 1. ต้องเพิ่มบรรทัดนี้ เพื่อให้ API รู้จักตัวแปร music
+        // ✅ 1. ลงทะเบียน Service ให้ระบบรู้จัก (เพื่อความเสถียร)
         builder.Services.AddSingleton(music);
 
+        // บังคับพอร์ตสำหรับ Railway
         builder.WebHost.UseUrls($"http://*:{port}");
 
         var app = builder.Build();
 
+        // ✅ 2. เปิดใช้งานการอ่านไฟล์ index.html จาก wwwroot
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
@@ -32,10 +34,14 @@ public static class WebServer
             return Results.Ok(new { message = "Playing" });
         });
 
-        // ✅ 2. แก้ตรงนี้ให้รับ music เข้ามาให้ถูกทาง (หรือจะใช้ music ตัวนอกเลยก็ได้)
+        // ✅ 3. ใช้ MapGet อันเดียวที่ส่งข้อมูลครบๆ (รวมร่างแล้ว)
         app.MapGet("/status", () =>
         {
-            return Results.Ok(new { guild = music.CurrentGuildName });
+            return Results.Ok(new
+            {
+                guild = music.CurrentGuildName,
+                users = music.GetUsersInVoice() // ดึงรายชื่อคนในห้อง
+            });
         });
 
         app.Run();

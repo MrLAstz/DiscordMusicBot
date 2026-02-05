@@ -2,96 +2,161 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Discord Music Bot</title>
+    <title>Discord Music Dashboard</title>
     <style>
+        :root {
+            --yt-red: #ff0000;
+            --bg-dark: #0f0f0f;
+            --card-bg: #1e1e1e;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #0f172a;
+            font-family: Roboto, Arial, sans-serif;
+            background: var(--bg-dark);
             color: white;
-            text-align: center;
-            padding: 40px;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Top Navigation (YouTube Style) */
+        nav {
+            background: var(--bg-dark);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #333;
+        }
+
+        .search-container {
+            display: flex;
+            width: 40%;
         }
 
         input {
-            width: 300px;
-            padding: 10px;
-            border-radius: 5px;
-            border: none;
-        }
-
-        button {
+            width: 100%;
             padding: 10px 15px;
-            margin: 5px;
-            cursor: pointer;
-            border-radius: 5px;
-            border: none;
-            background: #3b82f6;
+            border-radius: 20px 0 0 20px;
+            border: 1px solid #333;
+            background: #121212;
             color: white;
-            font-weight: bold;
+            outline: none;
         }
 
-            button:hover {
-                background: #2563eb;
-            }
+        .search-btn {
+            padding: 10px 20px;
+            border-radius: 0 20px 20px 0;
+            border: 1px solid #333;
+            background: #222;
+            color: white;
+            cursor: pointer;
+        }
 
-        .player-container {
-            margin-top: 20px;
+        /* Main Layout */
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: var(--bg-dark);
             padding: 20px;
-            background: #1e293b;
-            display: inline-block;
+            border-right: 1px solid #333;
+        }
+
+        .content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            text-align: center;
+        }
+
+        /* Status & UI Elements */
+        .status-box {
+            background: var(--card-bg);
+            padding: 15px;
             border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .user-tag {
+            background: #333;
+            padding: 5px 10px;
+            border-radius: 15px;
+            display: inline-block;
+            margin: 5px;
+            font-size: 0.85em;
+            color: #aaa;
+        }
+
+        .player-card {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            margin: 0 auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .join-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
 
-    <h1>🎵 Discord Music Bot</h1>
+    <nav>
+        <div style="font-size: 1.5em; font-weight: bold; color: var(--yt-red);">🔴 MusicBot</div>
+        <div class="search-container">
+            <input id="search" placeholder="ค้นหาเพลง...">
+            <button class="search-btn" onclick="search()">🔍</button>
+        </div>
+        <button class="join-btn" onclick="join()">Join Voice</button>
+    </nav>
 
-    <input id="search" placeholder="พิมพ์ชื่อเพลง หรือวาง Link YouTube">
-    <button onclick="search()">ค้นหา</button>
-    <button onclick="join()" style="background: #10b981;">Join Voice</button>
+    <div class="main-content">
+        <div class="sidebar">
+            <div class="status-box">
+                <h4 style="margin-top: 0; color: #aaa;">📍 Connected to:</h4>
+                <div id="guild-name" style="color: #10b981; font-weight: bold; font-size: 1.1em;">ไม่ได้เชื่อมต่อ</div>
+            </div>
 
-    <div id="player"></div>
+            <div class="status-box">
+                <h4 style="margin-top: 0; color: #aaa;">👥 People in Voice:</h4>
+                <div id="user-list"><i>ไม่มีใครอยู่ในห้อง</i></div>
+            </div>
+        </div>
 
-    <div id="status-bar" style="background: #1e293b; padding: 10px; margin-bottom: 20px; border-radius: 8px; font-size: 0.9em; color: #94a3b8;">
-        สถานะบอท: <span id="guild-name" style="color: #10b981; font-weight: bold;">กำลังโหลด...</span>
+        <div class="content">
+            <div id="player-area">
+                <h2 style="color: #666;">รอการค้นหาเพลง...</h2>
+            </div>
+        </div>
     </div>
+
     <script>
         function search() {
             const q = document.getElementById("search").value;
-            if (!q) return alert("กรุณาพิมพ์ชื่อเพลง");
-
-            // ปรับการแสดงผล: เนื่องจาก YouTube บล็อก iframe search
-            // เราจะโชว์ชื่อเพลงที่จะเล่นแทน เพื่อความชัวร์ในการรันบน Server
-            document.getElementById("player").innerHTML = `
-                            <div class="player-container">
-                                <h3>กำลังเตรียมเล่น: ${q}</h3>
-                                <p>กดปุ่มด้านล่างเพื่อส่งเพลงเข้า Discord</p>
-                                <button onclick="play('${q}')">▶️ เริ่มเล่นเพลงใน Discord</button>
-                            </div>
-                        `;
-        }
-
-        async function join() {
-            try {
-                const res = await fetch("/join", { method: "POST" });
-                if (res.ok) alert("✅ บอทกำลังเข้าห้องเสียงล่าสุดของคุณ");
-                else alert("❌ เกิดข้อผิดพลาด (บอทอาจยังไม่เห็นคุณในห้องเสียง)");
-            } catch (e) {
-                alert("❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
-            }
-        }
-
-        async function play(query) {
-            // ส่งแค่ query (ชื่อเพลง) ไปที่ API /play ของเราตรงๆ
-            // เดี๋ยว YoutubeService.cs ที่เราแก้ไว้จะไปหาคลิปแรกให้เอง
-            try {
-                const res = await fetch(`/play?url=${encodeURIComponent(query)}`, { method: "POST" });
-                if (res.ok) alert("🎵 สั่งเล่นเพลงสำเร็จ!");
-                else alert("❌ สั่งเล่นเพลงไม่สำเร็จ");
-            } catch (e) {
-                alert("❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
-            }
+            if (!q) return;
+            document.getElementById("player-area").innerHTML = `
+                    <div class="player-card">
+                        <img src="https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg" style="width: 100%; border-radius: 10px; margin-bottom: 15px;">
+                        <h3>${q}</h3>
+                        <button onclick="play('${q}')" style="background: var(--yt-red); color: white; border: none; padding: 12px 30px; border-radius: 20px; cursor: pointer; font-weight: bold; width: 100%;">▶️ PLAY IN DISCORD</button>
+                    </div>
+                `;
         }
 
         async function updateStatus() {
@@ -99,10 +164,29 @@
                 const res = await fetch("/status");
                 const data = await res.json();
                 document.getElementById("guild-name").innerText = data.guild;
-            } catch (e) {
-                document.getElementById("guild-name").innerText = "เชื่อมต่อไม่ได้";
-            }
+
+                // แสดงรายชื่อคนในห้อง
+                const userList = document.getElementById("user-list");
+                if (data.users && data.users.length > 0) {
+                    userList.innerHTML = data.users.map(u => `<span class="user-tag">👤 ${u}</span>`).join('');
+                } else {
+                    userList.innerHTML = "<i>ไม่มีใครอยู่ในห้อง</i>";
+                }
+            } catch (e) { console.error("Update failed"); }
         }
+
+        async function join() {
+            await fetch("/join", { method: "POST" });
+            alert("บอทเข้าห้องเสียงแล้ว!");
+        }
+
+        async function play(query) {
+            await fetch(`/play?url=${encodeURIComponent(query)}`, { method: "POST" });
+            alert("กำลังเล่นเพลง...");
+        }
+
+        setInterval(updateStatus, 3000);
+        updateStatus();
     </script>
 </body>
 </html>
