@@ -151,17 +151,38 @@
         .user-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 0;
+            gap: 12px;
+            padding: 10px 5px;
             border-bottom: 1px solid #2a2a2a;
-            font-size: 0.95em;
+            transition: background 0.2s;
         }
 
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%; /* ทำรูปให้กลมแบบ Discord */
+            background: #333;
+            object-fit: cover;
+        }
         .status-dot {
             width: 8px;
             height: 8px;
             background: #10b981;
             border-radius: 50%;
+        }
+        .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .user-name {
+            font-size: 0.95em;
+            font-weight: 500;
+            color: #eeeeee;
+        }
+
+        .user-status {
+            font-size: 0.75em;
+            color: var(--text-dim);
         }
 
         .content {
@@ -328,14 +349,34 @@
                 const res = await fetch("/status");
                 if (!res.ok) return;
                 const data = await res.json();
+
                 document.getElementById("guild-name").innerText = data.guild || "ไม่ได้อยู่ในห้อง";
+
                 const userList = document.getElementById("user-list");
+
+                // ตรวจสอบว่ามีข้อมูลผู้ใช้หรือไม่
                 if (data.users && data.users.length > 0) {
-                    userList.innerHTML = data.users.map(u => `<div class="user-item"><div class="status-dot"></div><span>${u}</span></div>`).join('');
+                    userList.innerHTML = data.users.map(u => {
+                        // สมมติว่าข้อมูล user ที่ส่งมามีโครงสร้าง { name: "ชื่อ", avatar: "url_รูป" }
+                        // ถ้า backend ส่งมาแค่ชื่ออย่างเดียว ให้ใช้รูป Default แทน
+                        const name = typeof u === 'string' ? u : u.name;
+                        const avatar = u.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
+
+                        return `
+                    <div class="user-item">
+                        <img src="${avatar}" class="user-avatar" alt="avatar">
+                        <div class="user-info">
+                            <span class="user-name">${name}</span>
+                        </div>
+                    </div>
+                `;
+                    }).join('');
                 } else {
-                    userList.innerHTML = `<i style="color: #666;">ไม่มีใครอยู่ในห้อง</i>`;
+                    userList.innerHTML = `<i style="color: #666; padding: 10px;">ไม่มีใครอยู่ในห้อง</i>`;
                 }
-            } catch (e) { console.log("Disconnected"); }
+            } catch (e) {
+                console.log("Error updating status:", e);
+            }
         }
 
         async function join() {
