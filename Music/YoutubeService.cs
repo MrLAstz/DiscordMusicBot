@@ -2,7 +2,7 @@
 using YoutubeExplode.Videos.Streams;
 using YoutubeExplode.Search;
 using System.Diagnostics;
-using System.Linq; // ✅ เพิ่มตัวนี้เพื่อให้ใช้ OrderByDescending และ First ได้มั่นใจขึ้น
+using System.Linq;
 
 namespace DiscordMusicBot.Music;
 
@@ -14,26 +14,26 @@ public class YoutubeService
     {
         string videoUrl = input;
 
-        // 1. ตรวจสอบว่าเป็น URL หรือไม่ ถ้าไม่ใช่ให้ค้นหา
+        // 1. ค้นหาเพลง (ถ้าไม่ใช่ URL)
         if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
         {
             var searchResults = _youtube.Search.GetVideosAsync(input);
-            await foreach (var result in searchResults) // ✅ ใช้ท่า await foreach อ่านง่ายและปลอดภัยกว่า
+            await foreach (var result in searchResults)
             {
                 videoUrl = result.Url;
-                break; // เอาแค่ผลลัพธ์แรกพอ
+                break;
             }
         }
 
         // 2. ดึง Stream Manifest
         var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
 
-        // 3. เลือก Audio Stream (ปรับให้ปลอดภัยขึ้น)
+        // 3. เลือก Audio Stream
+        // ปรับ: เลือก Bitrate ที่เหมาะสม (ไม่จำเป็นต้องสูงสุดเสมอไปเพื่อให้โหลดเร็วเหมือน Spotify)
         var audioStreamInfo = manifest
             .GetAudioOnlyStreams()
-            .Where(s => s.Container == Container.WebM || s.Container == Container.Mp4) // ✅ กรองเฉพาะ Container ที่เสถียร
             .OrderByDescending(s => s.Bitrate)
-            .FirstOrDefault(); // ✅ ใช้ FirstOrDefault กันระเบิดถ้าไม่เจอ Stream
+            .FirstOrDefault(s => s.Container == Container.WebM || s.Container == Container.Mp4);
 
         if (audioStreamInfo == null) throw new Exception("❌ ไม่พบไฟล์เสียงที่เล่นได้");
 
@@ -41,8 +41,8 @@ public class YoutubeService
         var process = Process.Start(new ProcessStartInfo
         {
             FileName = "ffmpeg",
-            // ปรับ Arguments ให้กระชับและรองรับการสตรีมต่อเนื่อง
-            Arguments = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -i \"{audioStreamInfo.Url}\" -ac 2 -f s16le -ar 48000 -loglevel panic pipe:1",
+            // ปรับ: เพิ่ม -analyzeduration และ -probesize 0 เพื่อให้ FFmpeg เริ่มทำงานทันทีโดยไม่ต้องรอวิเคราะห์ไฟล์นาน
+            Arguments = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -analyzeduration 0 -probesize 32 -i \"{audioStreamInfo.Url}\" -ac 2 -f s16le -ar 48000 -loglevel panic pipe:1",
             RedirectStandardOutput = true,
             UseShellExecute = false,
             CreateNoWindow = true
@@ -50,6 +50,7 @@ public class YoutubeService
 
         if (process == null) throw new Exception("❌ ไม่สามารถรัน FFmpeg ได้");
 
+        // คืนค่า Stream ของ FFmpeg ออกไปให้ MusicService
         return process.StandardOutput.BaseStream;
     }
 }

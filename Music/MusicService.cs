@@ -2,14 +2,14 @@
 using Discord.Audio;
 using Discord.WebSocket;
 using System.Collections.Concurrent;
-using System.Linq;
 
 namespace DiscordMusicBot.Music;
 
 public class MusicService
 {
-    private readonly ConcurrentDictionary<ulong, ulong> _serverRooms = new();
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
+    // 1. เพิ่มตัวจัดการยกเลิกงาน (เพื่อหยุดเพลงเก่าตอนกดเพลงใหม่)
+    private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _cts = new();
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
     private IVoiceChannel? _lastChannel;
@@ -24,7 +24,6 @@ public class MusicService
     public async Task JoinAsync(IVoiceChannel channel)
     {
         _lastChannel = channel;
-        _serverRooms[channel.Guild.Id] = channel.Id;
         CurrentGuildName = channel.Guild.Name;
 
         var audioClient = await channel.ConnectAsync();
@@ -37,7 +36,6 @@ public class MusicService
 
         foreach (var guild in _discordClient.Guilds)
         {
-            // แก้ไข: เรียก Rest ผ่าน _discordClient และระบุ GuildId
             var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
             if (user?.VoiceChannel != null)
             {
@@ -54,38 +52,48 @@ public class MusicService
 
         foreach (var guild in _discordClient.Guilds)
         {
-            // แก้ไข: เรียก Rest ผ่าน _discordClient และระบุ GuildId
             var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
             if (user?.VoiceChannel != null)
             {
+                // 2. ถ้ามีเพลงเดิมเล่นอยู่ ให้สั่งหยุดก่อน (เหมือน Spotify เปลี่ยนเพลง)
+                if (_cts.TryRemove(guild.Id, out var oldCts))
+                {
+                    oldCts.Cancel();
+                    oldCts.Dispose();
+                }
+
+                var newCts = new CancellationTokenSource();
+                _cts[guild.Id] = newCts;
+
                 if (!_audioClients.ContainsKey(guild.Id))
                 {
                     await JoinAsync(user.VoiceChannel);
                 }
 
-                var stream = await _youtube.GetAudioStreamAsync(url);
                 if (_audioClients.TryGetValue(guild.Id, out var audioClient))
                 {
-                    using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
-                    await stream.CopyToAsync(discord);
-                    await discord.FlushAsync();
-                    return;
+                    // 3. รันการเล่นเพลงใน Task.Run เพื่อให้หน้าเว็บไม่ค้างขณะรอโหลดเพลง
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var stream = await _youtube.GetAudioStreamAsync(url);
+                            using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
+
+                            // ส่ง Token เข้าไป เพื่อให้ยกเลิกการส่งเสียงได้ทันที
+                            await stream.CopyToAsync(discord, newCts.Token);
+                            await discord.FlushAsync();
+                        }
+                        catch (OperationCanceledException) { /* เพลงถูกข้าม */ }
+                        catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
+                    }, newCts.Token);
                 }
+                return;
             }
         }
     }
 
-    public async Task PlayLastAsync(string url)
-    {
-        if (_lastChannel != null && _audioClients.TryGetValue(_lastChannel.Guild.Id, out var audioClient))
-        {
-            var stream = await _youtube.GetAudioStreamAsync(url);
-            using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
-            await stream.CopyToAsync(discord);
-            await discord.FlushAsync();
-        }
-    }
-
+    // ส่วนของ GetUsersInVoice คงเดิมตามที่คุณส่งมา...
     public async Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null || _discordClient.ConnectionState != ConnectionState.Connected)
@@ -101,7 +109,6 @@ public class MusicService
             {
                 try
                 {
-                    // แก้ไข: เรียก Rest ผ่าน _discordClient และระบุ GuildId
                     var restUser = await _discordClient.Rest.GetGuildUserAsync(g.Id, userId);
                     user = g.GetUser(restUser.Id);
                 }
@@ -122,7 +129,6 @@ public class MusicService
             return new { guild = "คุณไม่ได้อยู่ในห้องเสียง", users = new List<object>() };
 
         var channel = user.VoiceChannel;
-
         var usersInRoom = targetGuild.Users
             .Where(u => u.VoiceChannel?.Id == channel.Id)
             .Select(u => new
@@ -133,10 +139,6 @@ public class MusicService
             })
             .ToList();
 
-        return new
-        {
-            guild = $"{targetGuild.Name} ({channel.Name})",
-            users = usersInRoom
-        };
+        return new { guild = $"{targetGuild.Name} ({channel.Name})", users = usersInRoom };
     }
 }

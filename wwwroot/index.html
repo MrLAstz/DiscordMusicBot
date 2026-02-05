@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Music Dashboard</title>
+    <title>MrLastBot - Music Dashboard</title>
     <style>
         :root {
             --yt-red: #ff0000;
@@ -13,6 +13,7 @@
             --text-main: #ffffff;
             --text-dim: #aaa;
             --discord-blue: #5865F2;
+            --spotify-green: #1DB954;
         }
 
         body {
@@ -48,7 +49,6 @@
             white-space: nowrap;
         }
 
-        /* Search Container */
         .search-container {
             flex: 1;
             max-width: 600px;
@@ -81,21 +81,8 @@
             border-left: none;
             display: flex;
             align-items: center;
-            justify-content: center;
         }
 
-            .search-btn:hover {
-                background: #272727;
-            }
-
-        /* YouTube Search Icon Style */
-        .yt-icon {
-            width: 20px;
-            height: 20px;
-            fill: white;
-        }
-
-        /* Suggestion Box */
         #suggestion-box {
             position: absolute;
             top: 105%;
@@ -103,11 +90,11 @@
             right: 0;
             background: var(--suggest-bg);
             border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             display: none;
             z-index: 1000;
             overflow: hidden;
             padding: 8px 0;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
 
         .suggestion-item {
@@ -116,7 +103,6 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            color: white;
             transition: background 0.2s;
         }
 
@@ -124,7 +110,7 @@
                 background: #3e3e3e;
             }
 
-        /* Auth Button */
+        /* Auth */
         .discord-login-btn {
             background: var(--discord-blue);
             text-decoration: none;
@@ -134,15 +120,8 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 0.9em;
             font-weight: bold;
-            border: none;
-            transition: 0.2s;
         }
-
-            .discord-login-btn:hover {
-                background: #4752c4;
-            }
 
         .user-pill {
             display: flex;
@@ -161,7 +140,7 @@
             border-radius: 50%;
         }
 
-        /* Layout Main */
+        /* Layout */
         .main-container {
             display: flex;
             flex: 1;
@@ -192,23 +171,54 @@
         }
 
         .guild-name {
-            color: #10b981;
+            color: var(--spotify-green);
             font-weight: bold;
-            font-size: 1.1em;
+        }
+
+        /* Controller Buttons */
+        .control-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-ctrl {
+            flex: 1;
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .btn-stop {
+            background: #333;
+            color: #ff4444;
+        }
+
+            .btn-stop:hover {
+                background: #444;
+            }
+
+        /* User List */
+        .user-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px;
         }
 
         .avatar-wrapper {
             position: relative;
             width: 32px;
             height: 32px;
-            flex-shrink: 0;
         }
 
         .user-avatar {
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            object-fit: cover;
         }
 
         .status-dot {
@@ -221,26 +231,14 @@
             border: 2px solid #1e1e1e;
         }
 
-        .user-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 8px;
-            border-radius: 8px;
-            transition: 0.2s;
-        }
-
-            .user-item:hover {
-                background: rgba(255,255,255,0.05);
-            }
-
+        /* Content */
         .content {
             flex: 1;
             padding: 40px;
-            overflow-y: auto;
             display: flex;
             flex-direction: column;
             align-items: center;
+            overflow-y: auto;
         }
 
         .player-card {
@@ -251,7 +249,6 @@
             max-width: 480px;
             text-align: center;
             box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-            margin-top: 50px;
         }
 
         .btn-play {
@@ -271,28 +268,27 @@
                 transform: scale(1.03);
                 background: #eee;
             }
+
+            .btn-play:disabled {
+                background: #555;
+                cursor: not-allowed;
+            }
     </style>
 </head>
 <body>
 
     <nav>
         <div class="logo">🔴 <span>MrLastBot</span></div>
-
         <div class="search-container">
             <div class="search-area">
-                <input id="search" placeholder="ค้นหาเพลงโปรดของคุณ..." autocomplete="off"
-                       oninput="getSuggestions()" onfocus="showBox()" onkeypress="if(event.key==='Enter') search()">
-                <button class="search-btn" onclick="search()">
-                    <svg class="yt-icon" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" focusable="false"><g><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></g></svg>
-                </button>
+                <input id="search" placeholder="ค้นหาเพลงโปรดของคุณ..." autocomplete="off" oninput="getSuggestions()" onkeypress="if(event.key==='Enter') search()">
+                <button class="search-btn" onclick="search()">🔍</button>
             </div>
             <div id="suggestion-box"></div>
         </div>
-
         <div id="auth-section">
             <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app&scope=identify+guilds" class="discord-login-btn">
-                <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
-                Login
+                Login with Discord
             </a>
         </div>
     </nav>
@@ -301,17 +297,20 @@
         <div class="sidebar">
             <div class="status-card">
                 <div class="status-title">📍 Current Server</div>
-                <div id="guild-name" class="guild-name">กรุณา Login</div>
+                <div id="guild-name" class="guild-name">ยังไม่ได้เชื่อมต่อ</div>
+                <div class="control-group">
+                    <button class="btn-ctrl btn-stop" onclick="stopMusic()">⏹ STOP</button>
+                </div>
             </div>
             <div class="status-card">
                 <div class="status-title">👥 Voice Members</div>
-                <div id="user-list"><i style="color: #666;">เข้าสู่ระบบเพื่อดูสมาชิก</i></div>
+                <div id="user-list"><i style="color: #666;">กรุณาเข้าห้องเสียง</i></div>
             </div>
         </div>
 
         <div class="content">
             <div id="player-display" style="width: 100%; display: flex; justify-content: center;">
-                <h2 style="color: #333; margin-top: 100px; text-align: center;">ค้นหาเพลงด้านบนเพื่อเริ่มความมันส์ 🎵</h2>
+                <h2 style="color: #444; margin-top: 100px;">ค้นหาเพลงด้านบนเพื่อเริ่มเล่น 🎵</h2>
             </div>
         </div>
     </div>
@@ -320,65 +319,42 @@
         let timeout = null;
         window.loggedUserId = null;
 
-        // --- 1. ระบบ Discord Login ---
         async function handleDiscordLogin() {
             const fragment = new URLSearchParams(window.location.hash.slice(1));
-            let accessToken = fragment.get('access_token');
-
-            if (!accessToken) {
-                accessToken = localStorage.getItem('discord_access_token');
-            }
+            let accessToken = fragment.get('access_token') || localStorage.getItem('discord_access_token');
 
             if (accessToken) {
                 try {
                     const response = await fetch('https://discord.com/api/users/@me', {
                         headers: { Authorization: `Bearer ${accessToken}` }
                     });
-
-                    if (!response.ok) throw new Error("Token expired");
-
+                    if (!response.ok) throw new Error();
                     const user = await response.json();
                     window.loggedUserId = user.id;
-
                     localStorage.setItem('discord_access_token', accessToken);
 
                     document.getElementById('auth-section').innerHTML = `
-                            <div class="user-menu-container" style="position: relative;">
-                                <div class="user-pill" onclick="toggleLogoutMenu()">
-                                    <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
-                                         class="nav-avatar"
-                                         onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                    <span style="color: white;">${user.global_name || user.username}</span>
-                                </div>
-                                <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; z-index: 100;">
-                                    <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left;">🚪 Logout</button>
-                                </div>
-                            </div>
-                        `;
+                            <div class="user-pill" onclick="logout()">
+                                <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png" class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                <span style="color: white;">${user.global_name || user.username}</span>
+                            </div>`;
 
                     updateStatus();
                     setInterval(updateStatus, 5000);
                     window.history.replaceState({}, document.title, "/");
-
                 } catch (e) {
-                    console.error("Login Error:", e);
                     localStorage.removeItem('discord_access_token');
                 }
             }
         }
 
         function logout() {
-            localStorage.removeItem('discord_access_token');
-            window.loggedUserId = null;
-            location.reload();
+            if (confirm("ต้องการ Log out หรือไม่?")) {
+                localStorage.removeItem('discord_access_token');
+                location.reload();
+            }
         }
 
-        function toggleLogoutMenu() {
-            const menu = document.getElementById("logout-menu");
-            menu.style.display = menu.style.display === "none" ? "block" : "none";
-        }
-
-        // --- 2. ระบบค้นหา (YouTube Suggestion) ---
         function getSuggestions() {
             const query = document.getElementById("search").value;
             const box = document.getElementById("suggestion-box");
@@ -398,14 +374,10 @@
             const box = document.getElementById("suggestion-box");
             if (!suggestions?.length) { box.style.display = "none"; return; }
 
-            // เปลี่ยนไอคอนใน suggestion เป็น SVG ด้วย
-            const searchIconSvg = `<svg style="width:16px; height:16px; fill:#888;" viewBox="0 0 24 24"><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></svg>`;
-
             box.innerHTML = suggestions.map(item => `
-                        <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
-                            ${searchIconSvg} ${item[0]}
-                        </div>
-                    `).join('');
+                    <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
+                        🔍 ${item[0]}
+                    </div>`).join('');
             box.style.display = "block";
         }
 
@@ -420,17 +392,38 @@
             if (!q) return;
             document.getElementById("suggestion-box").style.display = "none";
             document.getElementById("player-display").innerHTML = `
-                        <div class="player-card">
-                            <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
-                            <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
-                            <button class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
-                        </div>
-                    `;
+                    <div class="player-card">
+                        <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
+                        <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
+                        <button id="main-play-btn" class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
+                    </div>`;
         }
 
-        function showBox() {
-            const query = document.getElementById("search").value;
-            if (query.length >= 2) document.getElementById("suggestion-box").style.display = "block";
+        async function play(query) {
+            if (!window.loggedUserId) { alert("กรุณา Login ก่อนครับ"); return; }
+
+            const btn = document.getElementById('main-play-btn');
+            btn.innerText = "⌛ กำลังโหลด...";
+            btn.disabled = true;
+
+            try {
+                const params = new URLSearchParams({ url: query, userId: window.loggedUserId });
+                await fetch(`/play?${params.toString()}`, { method: "POST" });
+                btn.innerText = "✅ เล่นเพลงแล้ว";
+            } catch (e) {
+                alert("เชื่อมต่อบอทไม่ได้");
+            } finally {
+                setTimeout(() => {
+                    if (btn) { btn.innerText = "▶️ เริ่มเล่นเพลง"; btn.disabled = false; }
+                }, 3000);
+            }
+        }
+
+        async function stopMusic() {
+            if (!window.loggedUserId) return;
+            // หมายเหตุ: คุณต้องเพิ่ม app.MapPost("/stop", ...) ใน WebServer.cs เพื่อรองรับการทำงานนี้
+            await fetch(`/play?url=STOP_COMMAND&userId=${window.loggedUserId}`, { method: "POST" });
+            alert("สั่งหยุดเพลงแล้ว");
         }
 
         async function updateStatus() {
@@ -438,45 +431,30 @@
             try {
                 const res = await fetch(`/status?userId=${window.loggedUserId}`);
                 const data = await res.json();
-                document.getElementById("guild-name").innerText = data.guild || "ไม่ได้เชื่อมต่อเสียง";
+                document.getElementById("guild-name").innerText = data.guild || "ยังไม่ได้เชื่อมต่อ";
 
                 const userList = document.getElementById("user-list");
-                const users = data.users || [];
-                if (users.length > 0) {
-                    userList.innerHTML = users.map(u => {
-                        let color = "#747f8d";
-                        if (u.status === "online") color = "#3ba55c";
-                        if (u.status === "idle") color = "#faa61a";
-                        if (u.status === "dnd") color = "#ed4245";
+                if (data.users?.length > 0) {
+                    userList.innerHTML = data.users.map(u => {
+                        let color = u.status === "online" ? "#3ba55c" : u.status === "idle" ? "#faa61a" : u.status === "dnd" ? "#ed4245" : "#747f8d";
                         return `
-                                    <div class="user-item">
-                                        <div class="avatar-wrapper">
-                                            <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                            <div class="status-dot" style="background-color: ${color}"></div>
-                                        </div>
-                                        <span style="color:#dbdee1;">${u.name}</span>
-                                    </div>`;
+                                <div class="user-item">
+                                    <div class="avatar-wrapper">
+                                        <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                        <div class="status-dot" style="background-color: ${color}"></div>
+                                    </div>
+                                    <span style="color:#dbdee1; font-size: 0.9em;">${u.name}</span>
+                                </div>`;
                     }).join('');
                 } else {
-                    userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้องเสียง</div>`;
+                    userList.innerHTML = `<div style="color:#666; font-size: 0.8em; padding:10px;">ไม่มีใครอยู่ในห้องเสียง</div>`;
                 }
-            } catch (e) { console.error("Status Error:", e); }
-        }
-
-        async function play(query) {
-            if (!window.loggedUserId) { alert("กรุณา Login ก่อนครับ"); return; }
-            const params = new URLSearchParams({ url: query, userId: window.loggedUserId });
-            await fetch(`/play?${params.toString()}`, { method: "POST" });
+            } catch (e) { }
         }
 
         handleDiscordLogin();
-
         document.addEventListener("click", (e) => {
             if (!e.target.closest('.search-container')) document.getElementById("suggestion-box").style.display = "none";
-            if (!e.target.closest('.user-menu-container')) {
-                const menu = document.getElementById("logout-menu");
-                if (menu) menu.style.display = "none";
-            }
         });
     </script>
 </body>
