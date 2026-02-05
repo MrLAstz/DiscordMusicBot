@@ -11,16 +11,27 @@ public class MusicService
     private IAudioClient? _client;
     private readonly YoutubeService _youtube = new();
 
+    // 1. เพิ่มตัวแปรเก็บชื่อ Server ไว้ด้านบน
+    public string CurrentGuildName { get; set; } = "ไม่ได้เชื่อมต่อ";
+
+    // 2. ใช้ JoinAsync ตัวนี้ตัวเดียวพอ (รวมร่างแล้ว)
     public async Task JoinAsync(IVoiceChannel channel)
     {
         _lastChannel = channel;
+        // เก็บชื่อ Server เมื่อเชื่อมต่อ
+        CurrentGuildName = channel.Guild.Name;
+
         _client ??= await channel.ConnectAsync();
     }
 
     public async Task JoinLastAsync()
     {
         if (_lastChannel != null && _client == null)
+        {
+            // อัปเดตชื่อ Guild เมื่อกลับมาเชื่อมต่อห้องเดิมด้วย
+            CurrentGuildName = _lastChannel.Guild.Name;
             _client = await _lastChannel.ConnectAsync();
+        }
     }
 
     public async Task PlayAsync(IVoiceChannel channel, string url)

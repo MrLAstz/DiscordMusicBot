@@ -53,6 +53,9 @@
 
     <div id="player"></div>
 
+    <div id="status-bar" style="background: #1e293b; padding: 10px; margin-bottom: 20px; border-radius: 8px; font-size: 0.9em; color: #94a3b8;">
+        สถานะบอท: <span id="guild-name" style="color: #10b981; font-weight: bold;">กำลังโหลด...</span>
+    </div>
     <script>
         function search() {
             const q = document.getElementById("search").value;
@@ -61,12 +64,12 @@
             // ปรับการแสดงผล: เนื่องจาก YouTube บล็อก iframe search
             // เราจะโชว์ชื่อเพลงที่จะเล่นแทน เพื่อความชัวร์ในการรันบน Server
             document.getElementById("player").innerHTML = `
-                    <div class="player-container">
-                        <h3>กำลังเตรียมเล่น: ${q}</h3>
-                        <p>กดปุ่มด้านล่างเพื่อส่งเพลงเข้า Discord</p>
-                        <button onclick="play('${q}')">▶️ เริ่มเล่นเพลงใน Discord</button>
-                    </div>
-                `;
+                        <div class="player-container">
+                            <h3>กำลังเตรียมเล่น: ${q}</h3>
+                            <p>กดปุ่มด้านล่างเพื่อส่งเพลงเข้า Discord</p>
+                            <button onclick="play('${q}')">▶️ เริ่มเล่นเพลงใน Discord</button>
+                        </div>
+                    `;
         }
 
         async function join() {
@@ -90,6 +93,20 @@
                 alert("❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
             }
         }
+
+        async Task updateStatus() {
+            try {
+                const res = await fetch("/status");
+                const data = await res.json();
+                document.getElementById("guild-name").innerText = data.guild;
+            } catch (e) {
+                document.getElementById("guild-name").innerText = "เชื่อมต่อไม่ได้";
+            }
+        }
+
+        // 3. สั่งให้ดึงข้อมูลทุกๆ 5 วินาที
+        setInterval(updateStatus, 5000);
+        updateStatus(); // รันครั้งแรกทันทีที่โหลดหน้าเว็บ
     </script>
 
 </body>

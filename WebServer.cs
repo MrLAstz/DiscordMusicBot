@@ -33,6 +33,10 @@ public static class WebServer
             return Results.Ok(new { message = "Playing" });
         });
 
+        app.MapGet("/status", (MusicService music) =>
+        {
+            return Results.Ok(new { guild = music.CurrentGuildName });
+        });
         app.Run();
     }
 }
