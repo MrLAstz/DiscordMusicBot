@@ -256,13 +256,35 @@
             const q = document.getElementById("search").value;
             if (!q) return;
 
+            // เปลี่ยนการแสดงผลเพื่อเลี่ยงปัญหา YouTube iframe unavailable
             document.getElementById("player-display").innerHTML = `
-                    <div class="player-card">
-                        <div style="background: #333; height: 200px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 40px;">🎵</div>
-                        <h2 style="margin: 10px 0 20px 0;">${q}</h2>
-                        <button class="btn-play" onclick="play('${q}')">▶️ PLAY IN DISCORD</button>
+                <div class="player-card">
+                    <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 50px; border: 1px dashed #444;">
+                        🎵
                     </div>
-                `;
+                    <h2 style="margin: 0 0 10px 0; color: white;">${q}</h2>
+                    <p style="color: #aaa; margin-bottom: 25px;">พร้อมสำหรับการเล่นบน Discord</p>
+                    <button class="btn-play" onclick="play('${q}')">▶️ เริ่มเล่นเพลงนี้</button>
+                </div>
+            `;
+        }
+
+        // 2. Search & UI Update (ปรับขนาดและรูปแบบการแสดงผล)
+        function search() {
+            const q = document.getElementById("search").value;
+            if (!q) return;
+
+            // แก้ไขตรงนี้: เปลี่ยนจาก iframe เป็นการแสดงผลแบบ Card แทน เพื่อเลี่ยงวิดีโอเสีย
+            document.getElementById("player-display").innerHTML = `
+                <div class="player-card" style="margin-top: 40px;">
+                    <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 60px; border: 1px dashed #444;">
+                        🎵
+                    </div>
+                    <h2 style="margin: 0 0 10px 0; color: white; font-size: 24px;">${q}</h2>
+                    <p style="color: #aaa; margin-bottom: 25px;">พร้อมสำหรับการเล่นบน Discord แล้ว</p>
+                    <button class="btn-play" onclick="play('${q}')" style="font-size: 18px; padding: 15px;">▶️ เริ่มเล่นเพลงนี้ในห้อง Voice</button>
+                </div>
+            `;
         }
 
         // 3. API Calls
