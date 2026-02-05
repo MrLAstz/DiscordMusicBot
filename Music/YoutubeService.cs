@@ -1,56 +1,47 @@
 ﻿using YoutubeExplode;
 using YoutubeExplode.Videos.Streams;
-using YoutubeExplode.Search; // เพิ่มตัวนี้
+using YoutubeExplode.Search;
 using System.Diagnostics;
+using System.Linq; // ✅ เพิ่มตัวนี้เพื่อให้ใช้ OrderByDescending และ First ได้มั่นใจขึ้น
 
 namespace DiscordMusicBot.Music;
 
 public class YoutubeService
 {
-    private readonly YoutubeClient _youtube = new(); // สร้างไว้ใช้ซ้ำช่วยประหยัด Memory
+    private readonly YoutubeClient _youtube = new();
 
     public async Task<Stream> GetAudioStreamAsync(string input)
     {
         string videoUrl = input;
 
-        // 1. ตรวจสอบว่าสิ่งที่ส่งมาเป็น URL หรือ คำค้นหา
+        // 1. ตรวจสอบว่าเป็น URL หรือไม่ ถ้าไม่ใช่ให้ค้นหา
         if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
         {
-            // ลบ await หน้า GetVideosAsync ออกให้ขาด!
             var searchResults = _youtube.Search.GetVideosAsync(input);
-
-            // ใช้ท่าเลี่ยง IAsyncEnumerable โดยตรง
-            IAsyncEnumerator<VideoSearchResult> enumerator = searchResults.GetAsyncEnumerator();
-            try
+            await foreach (var result in searchResults) // ✅ ใช้ท่า await foreach อ่านง่ายและปลอดภัยกว่า
             {
-                if (await enumerator.MoveNextAsync()) // ตรงนี้คือจุดเดียวที่ใช้ await
-                {
-                    videoUrl = enumerator.Current.Url;
-                }
-                else
-                {
-                    throw new Exception("❌ ไม่พบวิดีโอที่ค้นหา");
-                }
-            }
-            finally
-            {
-                await enumerator.DisposeAsync();
+                videoUrl = result.Url;
+                break; // เอาแค่ผลลัพธ์แรกพอ
             }
         }
+
         // 2. ดึง Stream Manifest
         var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
 
-        // 3. เลือก Audio Bitrate สูงสุด
+        // 3. เลือก Audio Stream (ปรับให้ปลอดภัยขึ้น)
         var audioStreamInfo = manifest
             .GetAudioOnlyStreams()
+            .Where(s => s.Container == Container.WebM || s.Container == Container.Mp4) // ✅ กรองเฉพาะ Container ที่เสถียร
             .OrderByDescending(s => s.Bitrate)
-            .First();
+            .FirstOrDefault(); // ✅ ใช้ FirstOrDefault กันระเบิดถ้าไม่เจอ Stream
 
-        // 4. ใช้ FFmpeg แปลงเป็น PCM (เพิ่มคำสั่งกันกระตุกสำหรับ Railway)
+        if (audioStreamInfo == null) throw new Exception("❌ ไม่พบไฟล์เสียงที่เล่นได้");
+
+        // 4. รัน FFmpeg
         var process = Process.Start(new ProcessStartInfo
         {
             FileName = "ffmpeg",
-            // เพิ่ม -reconnect เพื่อให้สตรีมไม่หลุดง่ายๆ เมื่อรันบน Server
+            // ปรับ Arguments ให้กระชับและรองรับการสตรีมต่อเนื่อง
             Arguments = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -i \"{audioStreamInfo.Url}\" -ac 2 -f s16le -ar 48000 -loglevel panic pipe:1",
             RedirectStandardOutput = true,
             UseShellExecute = false,
