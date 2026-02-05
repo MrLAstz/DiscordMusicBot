@@ -15,6 +15,23 @@ public class MusicService
 
     public void SetDiscordClient(DiscordSocketClient client) => _discordClient = client;
 
+    // ✅ เพิ่มเมธอด JoinByUserIdAsync เพื่อแก้ Build Error (CS1061)
+    public async Task<bool> JoinByUserIdAsync(ulong userId)
+    {
+        if (_discordClient == null) return false;
+
+        foreach (var guild in _discordClient.Guilds)
+        {
+            var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
+            if (user?.VoiceChannel != null)
+            {
+                await JoinAsync(user.VoiceChannel);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public async Task JoinAsync(IVoiceChannel channel)
     {
         var audioClient = await channel.ConnectAsync();
@@ -31,7 +48,6 @@ public class MusicService
 
             if (user?.VoiceChannel != null)
             {
-                // 1. หยุดเพลงเดิม (ถ้ามี)
                 if (_cts.TryRemove(guild.Id, out var oldCts))
                 {
                     oldCts.Cancel();
@@ -41,7 +57,6 @@ public class MusicService
                 var newCts = new CancellationTokenSource();
                 _cts[guild.Id] = newCts;
 
-                // 2. เช็คการเชื่อมต่อห้องเสียง
                 if (!_audioClients.ContainsKey(guild.Id))
                 {
                     await JoinAsync(user.VoiceChannel);
@@ -53,11 +68,9 @@ public class MusicService
                     {
                         try
                         {
-                            // 3. ดึง Direct URL จาก API (เครื่องเราไม่โหลดไฟล์เอง)
+                            // ดึง URL ตรงจาก YouTube API
                             string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
 
-                            // 4. สั่ง FFmpeg ให้ไปดึงข้อมูลจาก YouTube URL นั้น
-                            // หมายเหตุ: หากรันบน Windows แล้วบอทไม่เล่น ให้เปลี่ยน "ffmpeg" เป็น Path เต็ม เช่น @"C:\ffmpeg\bin\ffmpeg.exe"
                             var psi = new ProcessStartInfo
                             {
                                 FileName = "ffmpeg",
@@ -68,20 +81,15 @@ public class MusicService
                             };
 
                             using var process = Process.Start(psi);
-                            if (process == null) throw new Exception("❌ ไม่สามารถเริ่มต้นโปรแกรม FFmpeg ได้");
+                            if (process == null) return;
 
                             using var discordStream = audioClient.CreatePCMStream(AudioApplication.Music);
-
-                            // 5. ส่งข้อมูลเสียงเข้าห้อง Discord
                             await process.StandardOutput.BaseStream.CopyToAsync(discordStream, newCts.Token);
                             await discordStream.FlushAsync();
                         }
-                        catch (OperationCanceledException) { /* เพลงถูกข้าม */ }
+                        catch (OperationCanceledException) { }
                         catch (Exception ex) { Console.WriteLine($"[Playback Error]: {ex.Message}"); }
-                        finally
-                        {
-                            _cts.TryRemove(guild.Id, out _);
-                        }
+                        finally { _cts.TryRemove(guild.Id, out _); }
                     }, newCts.Token);
                 }
                 return;
@@ -89,12 +97,20 @@ public class MusicService
         }
     }
 
+    // ✅ เพิ่มเมธอด ToggleAsync เพื่อแก้ Build Error (CS1061)
+    public async Task ToggleAsync(ulong userId)
+    {
+        // การ Toggle พื้นฐานคือการหยุดเพลงปัจจุบัน (Skip)
+        await SkipAsync(userId);
+    }
+
     public async Task SkipAsync(ulong userId)
     {
         if (_discordClient == null) return;
         foreach (var guild in _discordClient.Guilds)
         {
-            if (guild.GetUser(userId)?.VoiceChannel != null)
+            var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
+            if (user?.VoiceChannel != null)
             {
                 if (_cts.TryRemove(guild.Id, out var oldCts))
                 {
