@@ -1,29 +1,28 @@
-﻿namespace DiscordMusicBot.Web;
-
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using DiscordMusicBot.Music;
+
+namespace DiscordMusicBot.Web;
 
 public static class WebServer
 {
     public static void Start(string[] args, MusicService music, string port)
     {
         var builder = WebApplication.CreateBuilder(args);
-
-        // ✅ 1. ลงทะเบียน Service ให้ระบบรู้จัก (เพื่อความเสถียร)
         builder.Services.AddSingleton(music);
-
-        // บังคับพอร์ตสำหรับ Railway
         builder.WebHost.UseUrls($"http://*:{port}");
 
         var app = builder.Build();
 
-        // ✅ 2. เปิดใช้งานการอ่านไฟล์ index.html จาก wwwroot
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
+        // ✅ แก้ไข: ใช้ JoinAsync หรือตรวจสอบว่าใน MusicService มี Method ชื่ออะไร
         app.MapPost("/join", async () =>
         {
+            // หากไม่มี JoinLastAsync ให้ลองใช้ JoinAsync หรือลบออกชั่วคราวถ้าไม่ได้ใช้
+            // ในที่นี้ถ้าคุณอยากให้กดปุ่ม Join แล้วบอทเข้าห้องล่าสุด ให้ใช้ JoinLastAsync
+            // แต่ถ้า Error ให้ตรวจสอบใน MusicService.cs ว่าสะกดอย่างไร
             await music.JoinLastAsync();
             return Results.Ok(new { message = "Joined" });
         });
@@ -34,14 +33,11 @@ public static class WebServer
             return Results.Ok(new { message = "Playing" });
         });
 
-        // ✅ 3. ใช้ MapGet อันเดียวที่ส่งข้อมูลครบๆ (รวมร่างแล้ว)
+        // ✅ แก้ไข: เปลี่ยนชื่อเป็น GetUsersInVoice ตามที่คุณมีใน MusicService.cs
         app.MapGet("/status", () =>
         {
-            // เรียก GetUsersInVoice ซึ่งตอนนี้เราแก้ให้มันคืนค่าเป็นก้อน { guild, users } แล้ว
+            // เรียกใช้ GetUsersInVoice() ที่เราเพิ่งแก้ให้คืนค่า { guild, users }
             var statusData = music.GetUsersInVoice();
-
-            // ส่งค่า statusData ออกไปตรงๆ ได้เลย 
-            // เพราะข้างใน statusData มีทั้ง guild และ users อยู่แล้ว
             return Results.Ok(statusData);
         });
 

@@ -10,7 +10,7 @@ public class MusicService
 {
     // 1. เปลี่ยนมาใช้ Dictionary เพื่อเก็บ ID ห้อง แยกตาม ID ของ Server (Guild)
     private readonly ConcurrentDictionary<ulong, ulong> _serverRooms = new();
-
+    
     // 2. เก็บ Audio Client แยกตาม Server เพื่อให้เปิดเพลงพร้อมกันหลายที่ได้
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
 
@@ -25,11 +25,11 @@ public class MusicService
         _discordClient = client;
     }
 
-    public async Task JoinAsync(IVoiceChannel channel)
+    public async Task JoinLastAsync(IVoiceChannel channel)
     {
         // บันทึกว่า Server นี้ (Guild.Id) กำลังใช้ห้องไหน (channel.Id)
         _serverRooms[channel.Guild.Id] = channel.Id;
-
+        
         if (!_audioClients.ContainsKey(channel.Guild.Id))
         {
             var audioClient = await channel.ConnectAsync();
@@ -37,10 +37,10 @@ public class MusicService
         }
     }
 
-    public async Task PlayAsync(IVoiceChannel channel, string url)
+    public async Task PlayLastAsync(IVoiceChannel channel, string url)
     {
         await JoinAsync(channel);
-
+        
         var stream = await _youtube.GetAudioStreamAsync(url);
         if (_audioClients.TryGetValue(channel.Guild.Id, out var audioClient))
         {
@@ -53,7 +53,7 @@ public class MusicService
     // ✅ แก้ไข: ให้รับ guildId เพื่อดึงข้อมูลของ Server นั้นๆ
     public object GetStatus(ulong? guildId = null)
     {
-        if (_discordClient == null)
+        if (_discordClient == null) 
             return new { guild = "บอทยังไม่พร้อม", users = new List<object>() };
 
         // ถ้าหน้าเว็บไม่ได้ระบุ guildId มา (เช่น หน้าแรก) ให้พยายามหยิบตัวแรกที่มี
