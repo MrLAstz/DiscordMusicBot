@@ -12,8 +12,6 @@ public class MusicService
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
-
-    // ✅ เพิ่มตัวแปรนี้เพื่อจำห้องล่าสุดที่บอทเข้าไป
     private IVoiceChannel? _lastChannel;
 
     public string CurrentGuildName { get; set; } = "ไม่ได้เชื่อมต่อ";
@@ -23,10 +21,9 @@ public class MusicService
         _discordClient = client;
     }
 
-    // ✅ แก้ไข: เพิ่ม Overload ให้ JoinAsync รับห้องมาเก็บไว้ (ใช้ตอน Command ใน Discord)
     public async Task JoinAsync(IVoiceChannel channel)
     {
-        _lastChannel = channel; // จำห้องนี้ไว้
+        _lastChannel = channel;
         _serverRooms[channel.Guild.Id] = channel.Id;
         CurrentGuildName = channel.Guild.Name;
 
@@ -37,18 +34,26 @@ public class MusicService
         }
     }
 
-    // ✅ แก้ไข: ทำให้ JoinLastAsync ไม่มี parameter (เพื่อให้ WebServer เรียกใช้ได้)
     public async Task JoinLastAsync()
     {
+        // ถ้าไม่มี _lastChannel ให้พยายามหาห้องที่มีคนนั่งอยู่จาก Guild แรกที่บอทอยู่
+        if (_lastChannel == null && _discordClient != null)
+        {
+            var firstGuild = _discordClient.Guilds.FirstOrDefault();
+            _lastChannel = firstGuild?.VoiceChannels
+                .OrderByDescending(v => v.Users.Count)
+                .FirstOrDefault();
+        }
+
         if (_lastChannel != null)
         {
             await JoinAsync(_lastChannel);
         }
     }
 
-    // ✅ แก้ไข: ทำให้ PlayLastAsync รับแค่ URL (เพื่อให้ WebServer เรียกใช้ได้)
     public async Task PlayLastAsync(string url)
     {
+        if (_lastChannel == null) await JoinLastAsync();
         if (_lastChannel == null) return;
 
         var stream = await _youtube.GetAudioStreamAsync(url);
@@ -60,37 +65,38 @@ public class MusicService
         }
     }
 
-    // ✅ แก้ไข: เปลี่ยนชื่อเป็น GetUsersInVoice (เพื่อให้ตรงกับที่ WebServer เรียก)
+    // ✅ Logic ใหม่: ดึงข้อมูลสดจาก Discord ทันที
     public object GetUsersInVoice(ulong? guildId = null)
     {
-        if (_discordClient == null)
+        if (_discordClient == null || _discordClient.Guilds.Count == 0)
             return new { guild = "บอทยังไม่พร้อม", users = new List<object>() };
-
-        var targetGuildId = guildId ?? _serverRooms.Keys.FirstOrDefault();
-
-        if (targetGuildId == 0 || !_serverRooms.TryGetValue(targetGuildId, out var channelId))
-            return new { guild = "ไม่ได้เชื่อมต่อ", users = new List<object>() };
 
         try
         {
-            var voiceChannel = _discordClient.GetChannel(channelId) as SocketVoiceChannel;
-            if (voiceChannel == null)
-                return new { guild = "ไม่พบห้อง", users = new List<object>() };
+            // 1. เลือก Guild ที่จะแสดง: ตาม ID ที่ส่งมา หรือ Guild ล่าสุด หรือ Guild แรกที่เจอ
+            var guild = (guildId.HasValue ? _discordClient.GetGuild(guildId.Value) : null)
+                        ?? _lastChannel?.Guild
+                        ?? _discordClient.Guilds.First();
 
-            this.CurrentGuildName = voiceChannel.Guild.Name;
+            this.CurrentGuildName = guild.Name;
 
-            return new
+            // 2. เลือกห้องที่จะแสดงสมาชิก: ห้องที่บอทอยู่ หรือถ้าไม่มี ให้เอาห้องที่มีคนเยอะที่สุด
+            _serverRooms.TryGetValue(guild.Id, out var joinedChannelId);
+
+            var targetChannel = guild.VoiceChannels.FirstOrDefault(c => c.Id == joinedChannelId)
+                                ?? guild.VoiceChannels.OrderByDescending(v => v.Users.Count).FirstOrDefault();
+
+            if (targetChannel == null)
+                return new { guild = guild.Name, users = new List<object>() };
+
+            var userList = targetChannel.Users.Select(u => new
             {
-                guild = voiceChannel.Guild.Name,
-                users = voiceChannel.Users
-                    .Where(u => u.VoiceChannel != null && u.VoiceChannel.Id == channelId)
-                    .Select(u => new
-                    {
-                        name = u.GlobalName ?? u.Username,
-                        avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                        status = u.Status.ToString().ToLower()
-                    }).ToList()
-            };
+                name = u.GlobalName ?? u.Username,
+                avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
+                status = u.Status.ToString().ToLower()
+            }).ToList();
+
+            return new { guild = guild.Name, users = userList };
         }
         catch
         {

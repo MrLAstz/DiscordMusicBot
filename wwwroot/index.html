@@ -402,7 +402,10 @@
 
         async function join() {
             const res = await fetch("/join", { method: "POST" });
-            if (res.ok) alert("บอทเข้าห้องแล้ว!");
+            if (res.ok) {
+                alert("บอทเข้าห้องแล้ว!");
+                updateStatus(); // <--- เพิ่มบรรทัดนี้เพื่อให้ชื่อ Guild อัปเดตทันที
+            }
         }
 
         async function play(query) {
