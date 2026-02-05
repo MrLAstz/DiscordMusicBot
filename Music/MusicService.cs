@@ -2,33 +2,40 @@
 using Discord.Audio;
 using Discord.WebSocket;
 using System.Diagnostics;
-using System.Linq; // ✅ ต้องเพิ่มบรรทัดนี้ ไม่งั้นจะ Error ที่ .Select และ .ToList
+using System.Linq;
 
 namespace DiscordMusicBot.Music;
 
 public class MusicService
 {
     private IVoiceChannel? _lastChannel;
-    private IAudioClient? _client;
+    private IAudioClient? _audioClient; // เปลี่ยนชื่อเพื่อไม่ให้สับสนกับ SocketClient
+    private DiscordSocketClient? _discordClient; // สำหรับดึงข้อมูล User สดๆ
     private ulong? _currentChannelId;
     private readonly YoutubeService _youtube = new();
 
     public string CurrentGuildName { get; set; } = "ไม่ได้เชื่อมต่อ";
 
+    // ✅ Method สำหรับรับ Client มาจาก BotService
+    public void SetDiscordClient(DiscordSocketClient client)
+    {
+        _discordClient = client;
+    }
+
     public async Task JoinAsync(IVoiceChannel channel)
     {
         _lastChannel = channel;
-        _currentChannelId = channel.Id; // จำ ID ห้องไว้
+        _currentChannelId = channel.Id;
         CurrentGuildName = channel.Guild.Name;
-        _client ??= await channel.ConnectAsync();
+        _audioClient ??= await channel.ConnectAsync();
     }
 
     public async Task JoinLastAsync()
     {
-        if (_lastChannel != null && _client == null)
+        if (_lastChannel != null && _audioClient == null)
         {
             CurrentGuildName = _lastChannel.Guild.Name;
-            _client = await _lastChannel.ConnectAsync();
+            _audioClient = await _lastChannel.ConnectAsync();
         }
     }
 
@@ -40,41 +47,36 @@ public class MusicService
 
     public async Task PlayLastAsync(string url)
     {
-        if (_client == null) return;
+        if (_audioClient == null) return;
         await PlayInternal(url);
     }
 
     private async Task PlayInternal(string url)
     {
         var stream = await _youtube.GetAudioStreamAsync(url);
-        using var discord = _client!.CreatePCMStream(AudioApplication.Music);
+        using var discord = _audioClient!.CreatePCMStream(AudioApplication.Music);
         await stream.CopyToAsync(discord);
         await discord.FlushAsync();
     }
 
-    // ✅ แก้ไขส่วนนี้เพื่อให้ดึงรายชื่อได้ถูกต้อง
+    // ✅ แก้ไข: ดึงรายชื่อผ่าน DiscordSocketClient เพื่อความแม่นยำ
     public object GetUsersInVoice()
     {
-        // ถ้ายังไม่ได้เชื่อมต่อ หรือไม่มี ID ห้อง ให้คืนค่าว่าง
-        if (_currentChannelId == null) return new List<object>();
+        if (_discordClient == null || _currentChannelId == null) return new List<object>();
 
         try
         {
-            // 1. ดึงข้อมูล Guild จาก Channel ล่าสุด (Cast เป็น SocketGuild เพื่อใช้ความสามารถของ Socket)
-            if (_lastChannel?.Guild is not SocketGuild socketGuild) return new List<object>();
+            // ดึง Channel แบบสดๆ จาก Client หลัก (จะไม่อ้างอิง Object เก่าใน Cache)
+            var voiceChannel = _discordClient.GetChannel(_currentChannelId.Value) as SocketVoiceChannel;
 
-            // 2. ดึงข้อมูล Voice Channel แบบสดๆ โดยใช้ ID (สำคัญมาก: ต้องดึงผ่าน socketGuild.GetVoiceChannel)
-            var voiceChannel = socketGuild.GetVoiceChannel(_currentChannelId.Value);
+            if (voiceChannel == null) return new List<object>();
 
-            // ถ้าหาห้องไม่เจอ หรือไม่มีคนอยู่ในห้องเลย
-            if (voiceChannel == null || voiceChannel.Users == null) return new List<object>();
-
-            // 3. ดึงรายชื่อเฉพาะคนที่อยู่ในห้องนั้นจริงๆ (voiceChannel.Users จะคืนค่าเฉพาะคนในห้องนั้น)
+            // ดึงรายชื่อเฉพาะคนที่อยู่ในห้องนั้นจริงๆ
             return voiceChannel.Users.Select(u => new
             {
                 name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                // ตรวจสอบสถานะ: ถ้าใช้ SocketUser จะได้สถานะที่แม่นยำกว่า
+                // แสดงสถานะ Online/Idle/Dnd
                 status = u.Status.ToString().ToLower()
             }).ToList();
         }

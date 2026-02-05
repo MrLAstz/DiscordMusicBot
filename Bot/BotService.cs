@@ -17,8 +17,13 @@ public class BotService
 
         _client = new DiscordSocketClient(new DiscordSocketConfig
         {
-            GatewayIntents = GatewayIntents.All
+            // 1. ตรวจสอบว่าใช้ GatewayIntents.All หรืออย่างน้อยต้องมี GuildVoiceStates และ GuildMembers
+            GatewayIntents = GatewayIntents.All,
+            AlwaysDownloadUsers = true // 2. เพิ่มบรรทัดนี้เพื่อให้บอทเก็บข้อมูล User ไว้ใน Cache เสมอ
         });
+
+        // 3. ส่งตัว client นี้ไปให้ MusicService ใช้งาน (ต้องไปสร้าง Method นี้ใน MusicService ด้วย)
+        _music.SetDiscordClient(_client);
 
         new CommandHandler(_client, _music);
     }
