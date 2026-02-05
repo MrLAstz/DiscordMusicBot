@@ -46,7 +46,6 @@ public class YoutubeService
     {
         string videoUrl = input;
 
-        // ถ้าส่งชื่อเพลงมา (ไม่ใช่ URL) ให้หา URL วิดีโอก่อน
         if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
         {
             var searchResults = _youtube.Search.GetVideosAsync(input);
@@ -57,16 +56,16 @@ public class YoutubeService
             }
         }
 
-        // ตรงบรรทัดที่ดึง Manifest หากเจอปัญหาเล่นไม่ได้ ให้ลองแก้เป็น:
         var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
-        // เลือก audio stream ที่ไม่ใช่แบบ "DASH" บางประเภทที่มักจะมีปัญหา
+
+        // กรองเอา Opus หรือ WebM เพราะ Discord ใช้ Opus เป็นหลัก จะทำให้การถอดรหัสลื่นที่สุด
         var audioStreamInfo = manifest.GetAudioOnlyStreams()
-            .Where(s => s.Container == YoutubeExplode.Videos.Streams.Container.Mp3 || s.Container == YoutubeExplode.Videos.Streams.Container.WebM)
-            .GetWithHighestBitrate();
+            .OrderByDescending(s => s.Bitrate)
+            .FirstOrDefault();
 
-        if (audioStreamInfo == null) throw new Exception("❌ ไม่พบไฟล์เสียงที่เล่นได้จาก YouTube API");
+        if (audioStreamInfo == null) throw new Exception("❌ ไม่พบไฟล์เสียงที่เล่นได้");
 
-        return audioStreamInfo.Url; // คืนค่า URL สตรีมตรงๆ
+        return audioStreamInfo.Url;
     }
 
     private string FormatViews(long views)

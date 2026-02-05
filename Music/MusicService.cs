@@ -15,11 +15,9 @@ public class MusicService
 
     public void SetDiscordClient(DiscordSocketClient client) => _discordClient = client;
 
-    // ✅ เพิ่มเมธอด JoinByUserIdAsync เพื่อแก้ Build Error (CS1061)
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
         if (_discordClient == null) return false;
-
         foreach (var guild in _discordClient.Guilds)
         {
             var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
@@ -48,6 +46,7 @@ public class MusicService
 
             if (user?.VoiceChannel != null)
             {
+                // 1. เคลียร์เพลงเก่าและ Cancel Token เดิม
                 if (_cts.TryRemove(guild.Id, out var oldCts))
                 {
                     oldCts.Cancel();
@@ -68,13 +67,14 @@ public class MusicService
                     {
                         try
                         {
-                            // ดึง URL ตรงจาก YouTube API
                             string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
 
+                            // 2. ปรับจูน FFmpeg Arguments ให้เหมาะกับ Streaming
                             var psi = new ProcessStartInfo
                             {
                                 FileName = "ffmpeg",
-                                Arguments = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -i \"{streamUrl}\" -ac 2 -f s16le -ar 48000 -loglevel panic pipe:1",
+                                Arguments = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
+                                            $"-i \"{streamUrl}\" -ac 2 -f s16le -ar 48000 -loglevel panic pipe:1",
                                 RedirectStandardOutput = true,
                                 UseShellExecute = false,
                                 CreateNoWindow = true
@@ -83,13 +83,29 @@ public class MusicService
                             using var process = Process.Start(psi);
                             if (process == null) return;
 
+                            // 3. ใช้ PCM Stream และส่งข้อมูลด้วย Buffer ที่เหมาะสม
                             using var discordStream = audioClient.CreatePCMStream(AudioApplication.Music);
-                            await process.StandardOutput.BaseStream.CopyToAsync(discordStream, newCts.Token);
-                            await discordStream.FlushAsync();
+
+                            try
+                            {
+                                // กำหนด buffer size 16KB ช่วยให้สตรีมลื่นขึ้น
+                                await process.StandardOutput.BaseStream.CopyToAsync(discordStream, 16384, newCts.Token);
+                            }
+                            finally
+                            {
+                                await discordStream.FlushAsync();
+                                if (!process.HasExited) process.Kill();
+                            }
                         }
                         catch (OperationCanceledException) { }
-                        catch (Exception ex) { Console.WriteLine($"[Playback Error]: {ex.Message}"); }
-                        finally { _cts.TryRemove(guild.Id, out _); }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[Playback Error]: {ex.Message}");
+                        }
+                        finally
+                        {
+                            _cts.TryRemove(guild.Id, out _);
+                        }
                     }, newCts.Token);
                 }
                 return;
@@ -97,12 +113,7 @@ public class MusicService
         }
     }
 
-    // ✅ เพิ่มเมธอด ToggleAsync เพื่อแก้ Build Error (CS1061)
-    public async Task ToggleAsync(ulong userId)
-    {
-        // การ Toggle พื้นฐานคือการหยุดเพลงปัจจุบัน (Skip)
-        await SkipAsync(userId);
-    }
+    public async Task ToggleAsync(ulong userId) => await SkipAsync(userId);
 
     public async Task SkipAsync(ulong userId)
     {
