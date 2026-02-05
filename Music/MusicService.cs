@@ -7,82 +7,39 @@ namespace DiscordMusicBot.Music;
 
 public class MusicService
 {
-    private IAudioClient? _audioClient;
-    private CancellationTokenSource? _keepAliveToken;
-
+    private IVoiceChannel? _lastChannel;
+    private IAudioClient? _client;
     private readonly YoutubeService _youtube = new();
 
-    // เข้า voice แล้ว "ค้างถาวร"
-    public async Task JoinAndStayAsync(IVoiceChannel channel)
+    public async Task JoinAsync(IVoiceChannel channel)
     {
-        if (_audioClient != null)
-            return;
-
-        _audioClient = await channel.ConnectAsync();
-        Console.WriteLine("🎧 Joined voice");
-
-        _keepAliveToken = new CancellationTokenSource();
-        _ = Task.Run(() => KeepVoiceAlive(_keepAliveToken.Token));
+        _lastChannel = channel;
+        _client ??= await channel.ConnectAsync();
     }
 
-    // 🔇 ส่งเสียงเงียบกันโดนเตะ
-    private async Task KeepVoiceAlive(CancellationToken token)
+    public async Task JoinLastAsync()
     {
-        try
-        {
-            using var stream = _audioClient!.CreatePCMStream(AudioApplication.Mixed);
-            var silence = new byte[3840]; // 20ms @ 48kHz
-
-            while (!token.IsCancellationRequested)
-            {
-                await stream.WriteAsync(silence, 0, silence.Length, token);
-                await Task.Delay(20, token);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"🔥 KeepAlive error: {ex.Message}");
-        }
+        if (_lastChannel != null && _client == null)
+            _client = await _lastChannel.ConnectAsync();
     }
 
-    // ▶️ เล่นเพลง
     public async Task PlayAsync(IVoiceChannel channel, string url)
     {
-        try
-        {
-            if (_audioClient == null)
-                await JoinAndStayAsync(channel);
-
-            var audioStream = await _youtube.GetAudioStreamAsync(url);
-
-            using var discord = _audioClient!.CreatePCMStream(AudioApplication.Music);
-            await audioStream.CopyToAsync(discord);
-            await discord.FlushAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"🔥 Play error: {ex}");
-        }
+        await JoinAsync(channel);
+        await PlayInternal(url);
     }
 
-    // 👋 ออกจาก voice (เฉพาะสั่งเอง)
-    public async Task LeaveAsync()
+    public async Task PlayLastAsync(string url)
     {
-        try
-        {
-            _keepAliveToken?.Cancel();
+        if (_client == null) return;
+        await PlayInternal(url);
+    }
 
-            if (_audioClient != null)
-            {
-                await _audioClient.StopAsync();
-                _audioClient = null;
-            }
-
-            Console.WriteLine("👋 Left voice");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"🔥 Leave error: {ex}");
-        }
+    private async Task PlayInternal(string url)
+    {
+        var stream = await _youtube.GetAudioStreamAsync(url);
+        using var discord = _client!.CreatePCMStream(AudioApplication.Music);
+        await stream.CopyToAsync(discord);
+        await discord.FlushAsync();
     }
 }

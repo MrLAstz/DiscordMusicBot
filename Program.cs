@@ -1,34 +1,27 @@
 ﻿using DiscordMusicBot.Bot;
-using Microsoft.Extensions.Configuration;
+using DiscordMusicBot.Music;
+using DiscordMusicBot.Web;
 
-var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddEnvironmentVariables();
-
-var token = builder.Configuration["DISCORD_TOKEN"];
-if (string.IsNullOrEmpty(token))
+class Program
 {
-    Console.WriteLine("❌ Missing DISCORD_TOKEN");
-    return;
+    static async Task Main(string[] args)
+    {
+        var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            Console.WriteLine("❌ DISCORD_TOKEN not found");
+            return;
+        }
+
+        var music = new MusicService();
+
+        // ▶️ เปิดเว็บ
+        _ = Task.Run(() => WebServer.Start(args, music));
+
+        // ▶️ เปิดบอท
+        var bot = new BotService(token, music);
+        await bot.StartAsync();
+
+        await Task.Delay(-1);
+    }
 }
-
-var app = builder.Build();
-
-var bot = new BotService(token);
-await bot.StartAsync();
-
-// ===== API =====
-app.MapGet("/", () => Results.File("wwwroot/index.html", "text/html"));
-
-app.MapPost("/join", async () =>
-{
-    await bot.JoinFromWebAsync();
-    return Results.Ok();
-});
-
-app.MapPost("/play", async (string url) =>
-{
-    await bot.PlayFromWebAsync(url);
-    return Results.Ok();
-});
-
-app.Run();
