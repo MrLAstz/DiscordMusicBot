@@ -133,7 +133,7 @@
         }
 
         .sidebar {
-            width: 280px;
+            width: 240px;
             background: var(--bg-dark);
             padding: 20px;
             border-right: 1px solid #333;
@@ -217,15 +217,14 @@
             left: 0;
             width: 100%;
             height: 90px;
-            background: rgba(15, 15, 15, 0.95); /* ทำให้โปร่งแสงนิดๆ */
-            backdrop-filter: blur(10px); /* เอฟเฟกต์กระจกฝ้า */
-            border-top: 2px solid var(--yt-red); /* เพิ่มเส้นขอบสีแดงด้านบนให้เด่น */
+            background: #000;
+            border-top: 1px solid #333;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 25px;
+            padding: 0 20px;
             z-index: 2000;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.8); /* เพิ่มเงาด้านบนให้บาร์ดูมีมิติ */
+            box-sizing: border-box;
         }
 
         .current-track-info {
