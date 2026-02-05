@@ -70,17 +70,22 @@ public class MusicService
         }
     }
 
-    public async Task PlayLastAsync(string url)
+    public async Task PlayByUserIdAsync(ulong userId, string url)
     {
-        if (_lastChannel == null) await JoinLastAsync();
-        if (_lastChannel == null) return;
+        if (_discordClient == null) return;
 
-        var stream = await _youtube.GetAudioStreamAsync(url);
-        if (_audioClients.TryGetValue(_lastChannel.Guild.Id, out var audioClient))
+        foreach (var guild in _discordClient.Guilds)
         {
-            using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
-            await stream.CopyToAsync(discord);
-            await discord.FlushAsync();
+            var user = guild.GetUser(userId);
+            // เช็คตำแหน่ง User แบบสดๆ (Stateless)
+            if (user?.VoiceChannel != null && _audioClients.TryGetValue(guild.Id, out var audioClient))
+            {
+                var stream = await _youtube.GetAudioStreamAsync(url);
+                using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
+                await stream.CopyToAsync(discord);
+                await discord.FlushAsync();
+                return;
+            }
         }
     }
 
