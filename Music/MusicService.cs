@@ -55,29 +55,32 @@ public class MusicService
     // ✅ แก้ไขส่วนนี้เพื่อให้ดึงรายชื่อได้ถูกต้อง
     public object GetUsersInVoice()
     {
-        if (_lastChannel == null || _currentChannelId == null) return new List<object>();
+        // ตรวจสอบว่าบอทเชื่อมต่ออยู่หรือไม่
+        if (_lastChannel == null || _currentChannelId == null)
+            return new List<object>();
 
         try
         {
-            // ดึง Instance ของห้องล่าสุดจาก Guild อีกครั้งเพื่อให้ได้ข้อมูลสมาชิกที่ Update (Real-time)
+            // เข้าถึง SocketGuild ผ่านทาง _lastChannel
             var guild = _lastChannel.Guild as SocketGuild;
+
+            // ดึงข้อมูลห้องวอยซ์ล่าสุดจาก Cache ของ SocketGuild เพื่อให้ได้ User ที่ Update จริงๆ
             var voiceChannel = guild?.GetVoiceChannel(_currentChannelId.Value);
 
-            if (voiceChannel == null) return new List<object>();
+            if (voiceChannel == null)
+                return new List<object>();
 
-            // ดึงเฉพาะสมาชิกที่ "เชื่อมต่ออยู่ในวอยซ์" ณ วินาทีนี้
-            var users = voiceChannel.Users;
-
-            return users.Select(u => new
+            // voiceChannel.Users จะคืนค่าเฉพาะคนที่ "เชื่อมต่อ" อยู่ในห้องนั้น ณ วินาทีนี้เท่านั้น
+            return voiceChannel.Users.Select(u => new
             {
                 name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                status = u.Status.ToString().ToLower() // online, idle, dnd, offline
+                status = u.Status.ToString().ToLower()
             }).ToList();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error fetching users: {ex.Message}");
+            Console.WriteLine($"[Error] GetUsersInVoice: {ex.Message}");
             return new List<object>();
         }
     }
