@@ -1,37 +1,45 @@
 ﻿using Discord;
 using Discord.Audio;
 using Discord.WebSocket;
+using System.Diagnostics;
 
 namespace DiscordMusicBot.Music;
 
 public class MusicService
 {
-    private IAudioClient? _audioClient;
-    private SocketVoiceChannel? _currentChannel;
+    private IVoiceChannel? _lastChannel;
+    private IAudioClient? _client;
+    private readonly YoutubeService _youtube = new();
 
-    // ====== สำหรับ Web ======
-    public async Task JoinFirstAvailableAsync()
+    public async Task JoinAsync(IVoiceChannel channel)
     {
-        if (_currentChannel != null) return;
-
-        Console.WriteLine("⚠️ JoinFirstAvailableAsync ยังไม่มี guild context");
-        await Task.CompletedTask;
+        _lastChannel = channel;
+        _client ??= await channel.ConnectAsync();
     }
 
-    public async Task PlayFromUrlAsync(string url)
+    public async Task JoinLastAsync()
     {
-        Console.WriteLine($"🎵 Request play: {url}");
-        await Task.CompletedTask;
+        if (_lastChannel != null && _client == null)
+            _client = await _lastChannel.ConnectAsync();
     }
 
-    // ====== สำหรับ Discord Command ======
-    public async Task JoinAndStayAsync(SocketVoiceChannel channel)
+    public async Task PlayAsync(IVoiceChannel channel, string url)
     {
-        if (_audioClient != null) return;
+        await JoinAsync(channel);
+        await PlayInternal(url);
+    }
 
-        _currentChannel = channel;
-        _audioClient = await channel.ConnectAsync(selfDeaf: true);
+    public async Task PlayLastAsync(string url)
+    {
+        if (_client == null) return;
+        await PlayInternal(url);
+    }
 
-        Console.WriteLine($"🔊 Joined voice: {channel.Name}");
+    private async Task PlayInternal(string url)
+    {
+        var stream = await _youtube.GetAudioStreamAsync(url);
+        using var discord = _client!.CreatePCMStream(AudioApplication.Music);
+        await stream.CopyToAsync(discord);
+        await discord.FlushAsync();
     }
 }

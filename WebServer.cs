@@ -1,37 +1,38 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using DiscordMusicBot.Music;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using DiscordMusicBot.Music;
 
 namespace DiscordMusicBot.Web;
 
 public static class WebServer
 {
-    public static async Task StartAsync(MusicService music)
+    public static void Start(string[] args, MusicService music)
     {
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseUrls($"http://0.0.0.0:{GetPort()}");
+        var builder = WebApplication.CreateBuilder(args);
+
+        builder.Services.AddSingleton(music);
 
         var app = builder.Build();
 
+        // 👉 เปิด static files (wwwroot)
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
-        app.MapPost("/join", async () =>
+        // 👉 API: join voice
+        app.MapPost("/join", async (MusicService music) =>
         {
-            await music.JoinFirstAvailableAsync();
+            await music.JoinLastAsync();
             return Results.Ok();
         });
 
-        app.MapPost("/play", async (string url) =>
+        // 👉 API: play
+        app.MapPost("/play", async (string url, MusicService music) =>
         {
-            await music.PlayFromUrlAsync(url);
+            await music.PlayLastAsync(url);
             return Results.Ok();
         });
 
-        Console.WriteLine($"🌐 Web listening on port {GetPort()}");
-        await app.RunAsync();
+        app.Run();
     }
-
-    private static string GetPort()
-        => Environment.GetEnvironmentVariable("PORT") ?? "8080";
 }
