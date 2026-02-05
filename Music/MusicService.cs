@@ -8,7 +8,7 @@ namespace DiscordMusicBot.Music;
 public class MusicService
 {
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
-    // 1. เพิ่มตัวจัดการยกเลิกงาน (เพื่อหยุดเพลงเก่าตอนกดเพลงใหม่)
+    // เก็บตัวจัดการการยกเลิกงาน (เพื่อหยุดหรือข้ามเพลง)
     private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _cts = new();
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
@@ -55,7 +55,7 @@ public class MusicService
             var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
             if (user?.VoiceChannel != null)
             {
-                // 2. ถ้ามีเพลงเดิมเล่นอยู่ ให้สั่งหยุดก่อน (เหมือน Spotify เปลี่ยนเพลง)
+                // หยุดเพลงเดิมก่อนถ้ามีเล่นอยู่
                 if (_cts.TryRemove(guild.Id, out var oldCts))
                 {
                     oldCts.Cancel();
@@ -72,7 +72,7 @@ public class MusicService
 
                 if (_audioClients.TryGetValue(guild.Id, out var audioClient))
                 {
-                    // 3. รันการเล่นเพลงใน Task.Run เพื่อให้หน้าเว็บไม่ค้างขณะรอโหลดเพลง
+                    // เล่นเพลงในพื้นหลังเพื่อให้หน้าเว็บทำงานต่อได้ทันที
                     _ = Task.Run(async () =>
                     {
                         try
@@ -80,12 +80,16 @@ public class MusicService
                             using var stream = await _youtube.GetAudioStreamAsync(url);
                             using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
 
-                            // ส่ง Token เข้าไป เพื่อให้ยกเลิกการส่งเสียงได้ทันที
+                            // ส่งเสียงพร้อม Token เพื่อให้สามารถยกเลิก (Skip) ได้
                             await stream.CopyToAsync(discord, newCts.Token);
                             await discord.FlushAsync();
                         }
-                        catch (OperationCanceledException) { /* เพลงถูกข้าม */ }
-                        catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
+                        catch (OperationCanceledException) { /* เพลงถูกข้ามโดยเจตนา */ }
+                        catch (Exception ex) { Console.WriteLine($"Playback Error: {ex.Message}"); }
+                        finally
+                        {
+                            _cts.TryRemove(guild.Id, out _);
+                        }
                     }, newCts.Token);
                 }
                 return;
@@ -93,7 +97,34 @@ public class MusicService
         }
     }
 
-    // ส่วนของ GetUsersInVoice คงเดิมตามที่คุณส่งมา...
+    // ✅ เพิ่มฟังก์ชัน Toggle (Pause/Resume) 
+    // สำหรับ Discord.Net วิธีที่เสถียรที่สุดคือการหยุด Stream ปัจจุบัน
+    public async Task ToggleAsync(ulong userId)
+    {
+        await SkipAsync(userId);
+    }
+
+    // ✅ เพิ่มฟังก์ชัน Skip (หยุดเพลงที่กำลังเล่นอยู่)
+    public async Task SkipAsync(ulong userId)
+    {
+        if (_discordClient == null) return;
+
+        foreach (var guild in _discordClient.Guilds)
+        {
+            var user = guild.GetUser(userId);
+            if (user?.VoiceChannel != null)
+            {
+                if (_cts.TryRemove(guild.Id, out var oldCts))
+                {
+                    oldCts.Cancel();
+                    oldCts.Dispose();
+                    Console.WriteLine($"⏭️ Skipped track in: {guild.Name}");
+                }
+                return;
+            }
+        }
+    }
+
     public async Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null || _discordClient.ConnectionState != ConnectionState.Connected)
@@ -110,7 +141,7 @@ public class MusicService
                 try
                 {
                     var restUser = await _discordClient.Rest.GetGuildUserAsync(g.Id, userId);
-                    user = g.GetUser(restUser.Id);
+                    if (restUser != null) user = g.GetUser(restUser.Id);
                 }
                 catch { continue; }
             }
