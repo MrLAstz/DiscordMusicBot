@@ -48,6 +48,57 @@
             white-space: nowrap;
         }
 
+        /* ส่วนที่เพิ่ม: ระบบ Grid สำหรับรายการเพลง */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            width: 100%;
+            padding: 20px;
+        }
+
+        .video-card-item {
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+            .video-card-item:hover {
+                transform: translateY(-5px);
+            }
+
+        .video-thumb {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #222;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        .video-info-text {
+            text-align: left;
+        }
+
+        .video-title-text {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: white;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .video-meta-text {
+            font-size: 14px;
+            color: var(--text-dim);
+        }
+
         /* Search Container */
         .search-container {
             flex: 1;
@@ -419,13 +470,33 @@
             const q = document.getElementById("search").value;
             if (!q) return;
             document.getElementById("suggestion-box").style.display = "none";
-            document.getElementById("player-display").innerHTML = `
-                        <div class="player-card">
-                            <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
-                            <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
-                            <button class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
-                        </div>
-                    `;
+
+            // จำลองรายการเพลง (ในอนาคตคุณสามารถนำข้อมูลจาก API จริงมาใส่ตรงนี้ได้)
+            const mockResults = [
+                { title: q, channel: "MrLast Music", views: "1.2M views" },
+                { title: q + " (Official Audio)", channel: "Music Channel", views: "500K views" },
+                { title: q + " [Remix]", channel: "DJ Remix", views: "10K views" },
+                { title: q + " Live Performance", channel: "Live Session", views: "85K views" }
+            ];
+
+            let html = `<div class="video-grid">`;
+
+            mockResults.forEach(item => {
+                html += `
+            <div class="video-card-item" onclick="play('${item.title.replace(/'/g, "\\'")}')">
+                <div class="video-thumb">🎵</div>
+                <div class="video-info-text">
+                    <div class="video-title-text">${item.title}</div>
+                    <div class="video-meta-text">${item.channel}</div>
+                    <div class="video-meta-text">${item.views} • 1 hour ago</div>
+                </div>
+            </div>
+            `;
+            });
+
+            html += `</div>`;
+
+            document.getElementById("player-display").innerHTML = html;
         }
 
         function showBox() {
