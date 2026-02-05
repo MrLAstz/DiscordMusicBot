@@ -1,30 +1,43 @@
-﻿using DiscordMusicBot.Bot;
+﻿using Discord;
+using Discord.WebSocket;
 using DiscordMusicBot.Music;
-using DiscordMusicBot.Web;
 
-class Program
+namespace DiscordMusicBot.Bot;
+
+public class BotService
 {
-    static async Task Main(string[] args)
+    private readonly DiscordSocketClient _client;
+    private readonly string _token;
+    private readonly MusicService _music;
+
+    public BotService(string token, MusicService music)
     {
-        var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
-        // Railway จะส่งพอร์ตมาให้ผ่านตัวแปร PORT
-        var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+        _token = token;
+        _music = music;
 
-        if (string.IsNullOrWhiteSpace(token))
+        // ✅ แก้ไข: เพิ่ม Config เพื่อให้บอทมองเห็นสมาชิกและสถานะออนไลน์
+        var config = new DiscordSocketConfig
         {
-            Console.WriteLine("❌ DISCORD_TOKEN not found");
-            return;
-        }
+            GatewayIntents = GatewayIntents.AllUnprivileged |
+                             GatewayIntents.GuildPresences |
+                             GatewayIntents.GuildMembers |
+                             GatewayIntents.GuildVoiceStates,
+            AlwaysDownloadUsers = true, // โหลดสมาชิกทั้งหมดมาไว้ใน Cache
+            MessageCacheSize = 100
+        };
 
-        var music = new MusicService();
+        _client = new DiscordSocketClient(config);
+    }
 
-        // ▶️ เปิดเว็บ (ส่ง port เข้าไปด้วย)
-        _ = Task.Run(() => WebServer.Start(args, music, port));
+    public async Task StartAsync()
+    {
+        await _client.LoginAsync(TokenType.Bot, _token);
+        await _client.StartAsync();
 
-        // ▶️ เปิดบอท
-        var bot = new BotService(token, music);
-        await bot.StartAsync();
-
-        await Task.Delay(-1);
+        _client.Ready += () =>
+        {
+            Console.WriteLine($"✅ บอทออนไลน์แล้ว: {_client.CurrentUser.Username}");
+            return Task.CompletedTask;
+        };
     }
 }

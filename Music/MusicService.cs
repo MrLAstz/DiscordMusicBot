@@ -55,24 +55,26 @@ public class MusicService
     // ✅ แก้ไขส่วนนี้เพื่อให้ดึงรายชื่อได้ถูกต้อง
     public object GetUsersInVoice()
     {
-        if (_lastChannel == null || _currentChannelId == null) return new List<object>();
+        // ถ้ายังไม่ได้เชื่อมต่อ หรือไม่มี ID ห้อง ให้คืนค่าว่าง
+        if (_currentChannelId == null) return new List<object>();
 
         try
         {
-            // 1. ดึงข้อมูล Guild ใหม่จาก Socket เพื่อให้ได้ข้อมูลล่าสุด
-            var guild = _lastChannel.Guild as SocketGuild;
-            // 2. ดึง Channel โดยระบุ ID
-            var voiceChannel = guild?.GetVoiceChannel(_currentChannelId.Value);
+            // 1. ดึงข้อมูล Guild จาก Channel ล่าสุด (Cast เป็น SocketGuild เพื่อใช้ความสามารถของ Socket)
+            if (_lastChannel?.Guild is not SocketGuild socketGuild) return new List<object>();
 
-            if (voiceChannel == null) return new List<object>();
+            // 2. ดึงข้อมูล Voice Channel แบบสดๆ โดยใช้ ID (สำคัญมาก: ต้องดึงผ่าน socketGuild.GetVoiceChannel)
+            var voiceChannel = socketGuild.GetVoiceChannel(_currentChannelId.Value);
 
-            // 3. ใช้ .Users จาก SocketVoiceChannel (ซึ่งจะถูก Update โดย Gateway Intents)
-            var currentUsers = voiceChannel.Users;
+            // ถ้าหาห้องไม่เจอ หรือไม่มีคนอยู่ในห้องเลย
+            if (voiceChannel == null || voiceChannel.Users == null) return new List<object>();
 
-            return currentUsers.Select(u => new
+            // 3. ดึงรายชื่อเฉพาะคนที่อยู่ในห้องนั้นจริงๆ (voiceChannel.Users จะคืนค่าเฉพาะคนในห้องนั้น)
+            return voiceChannel.Users.Select(u => new
             {
                 name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
+                // ตรวจสอบสถานะ: ถ้าใช้ SocketUser จะได้สถานะที่แม่นยำกว่า
                 status = u.Status.ToString().ToLower()
             }).ToList();
         }
