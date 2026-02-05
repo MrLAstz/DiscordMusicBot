@@ -8,7 +8,15 @@
 
 	<ItemGroup>
 		<PackageReference Include="Discord.Net" Version="3.18.0" />
+		<PackageReference Include="Discord.Net.Audio" Version="3.18.0" />
+		<PackageReference Include="Discord.Net.Providers.UDP" Version="3.18.0" />
 		<PackageReference Include="YoutubeExplode" Version="6.5.6" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Update="wwwroot\**\*">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
 	</ItemGroup>
 
 </Project>
