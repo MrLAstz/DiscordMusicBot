@@ -15,7 +15,6 @@ public class BotService
         _token = token;
         _music = music;
 
-        // แก้ไขจุดนี้: ใส่ Config เพื่อเปิดใช้งาน Intents และ Caching
         var config = new DiscordSocketConfig
         {
             GatewayIntents = GatewayIntents.AllUnprivileged |

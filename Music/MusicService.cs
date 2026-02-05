@@ -37,7 +37,8 @@ public class MusicService
 
         foreach (var guild in _discordClient.Guilds)
         {
-            var user = guild.GetUser(userId) ?? await guild.Rest.GetGuildUserAsync(userId);
+            // แก้ไข: เรียก Rest ผ่าน _discordClient และระบุ GuildId
+            var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
             if (user?.VoiceChannel != null)
             {
                 await JoinAsync(user.VoiceChannel);
@@ -47,29 +48,14 @@ public class MusicService
         return false;
     }
 
-    public async Task JoinLastAsync()
-    {
-        if (_discordClient != null)
-        {
-            var firstGuild = _discordClient.Guilds.FirstOrDefault();
-            if (firstGuild != null)
-            {
-                var target = firstGuild.VoiceChannels
-                    .OrderByDescending(v => v.Users.Count)
-                    .FirstOrDefault();
-
-                if (target != null) await JoinAsync(target);
-            }
-        }
-    }
-
     public async Task PlayByUserIdAsync(ulong userId, string url)
     {
         if (_discordClient == null) return;
 
         foreach (var guild in _discordClient.Guilds)
         {
-            var user = guild.GetUser(userId) ?? await guild.Rest.GetGuildUserAsync(userId);
+            // แก้ไข: เรียก Rest ผ่าน _discordClient และระบุ GuildId
+            var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
             if (user?.VoiceChannel != null)
             {
                 if (!_audioClients.ContainsKey(guild.Id))
@@ -115,7 +101,8 @@ public class MusicService
             {
                 try
                 {
-                    var restUser = await g.Rest.GetGuildUserAsync(userId);
+                    // แก้ไข: เรียก Rest ผ่าน _discordClient และระบุ GuildId
+                    var restUser = await _discordClient.Rest.GetGuildUserAsync(g.Id, userId);
                     user = g.GetUser(restUser.Id);
                 }
                 catch { continue; }

@@ -29,7 +29,6 @@ public static class WebServer
             string? userIdStr = context.Request.Query["userId"];
             if (ulong.TryParse(userIdStr, out ulong userId))
             {
-                // แก้จุดนี้: ใส่ await
                 var statusData = await musicService.GetUsersInVoice(userId);
                 return Results.Ok(statusData);
             }
@@ -45,8 +44,7 @@ public static class WebServer
                 return success ? Results.Ok(new { message = "Joined user's channel" })
                                : Results.BadRequest(new { message = "User not found" });
             }
-            await musicService.JoinLastAsync();
-            return Results.Ok(new { message = "Joined fallback" });
+            return Results.BadRequest(new { message = "User ID is required" });
         });
 
         app.MapPost("/play", async (HttpContext context, MusicService musicService) =>
@@ -60,8 +58,7 @@ public static class WebServer
                 await musicService.PlayByUserIdAsync(userId, url);
                 return Results.Ok(new { message = "Playing for user" });
             }
-            await musicService.PlayLastAsync(url);
-            return Results.Ok(new { message = "Playing last" });
+            return Results.BadRequest(new { message = "User ID is required" });
         });
 
         app.Run();
