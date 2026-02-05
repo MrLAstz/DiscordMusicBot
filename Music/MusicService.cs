@@ -107,39 +107,39 @@ public class MusicService
         }
     }
 
-    public object GetUsersInVoice(ulong? guildId = null)
+    public object GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null || _discordClient.Guilds.Count == 0)
             return new { guild = "บอทยังไม่พร้อม", users = new List<object>() };
 
         try
         {
-            // ดึง Guild ปัจจุบันจากสถานะสด
-            SocketGuild? guild = guildId.HasValue
-                ? _discordClient.GetGuild(guildId.Value)
-                : (_lastChannel?.Guild as SocketGuild ?? _discordClient.Guilds.FirstOrDefault());
-
-            if (guild == null) return new { guild = "ไม่พบเซิร์ฟเวอร์", users = new List<object>() };
-
-            this.CurrentGuildName = guild.Name;
-
-            // หาห้องที่มีบอทหรือคนอยู่จริง ณ ตอนนี้
-            var targetChannel = guild.VoiceChannels
-                                .FirstOrDefault(c => _audioClients.ContainsKey(guild.Id) && c.Id == _lastChannel?.Id)
-                                ?? guild.VoiceChannels.OrderByDescending(v => v.Users.Count).FirstOrDefault();
-
-            if (targetChannel == null)
-                return new { guild = guild.Name, users = new List<object>() };
-
-            // แสดงเฉพาะคนที่อยู่ใน Voice จริงๆ
-            var userList = targetChannel.Users.Select(u => new
+            // วนหาว่าผู้ใช้ที่ล็อกอิน (userId) อยู่ใน Guild ไหนและห้องไหน ณ ตอนนี้
+            foreach (var guild in _discordClient.Guilds)
             {
-                name = u.GlobalName ?? u.Username,
-                avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                status = u.Status.ToString().ToLower()
-            }).ToList();
+                var user = guild.GetUser(userId);
 
-            return new { guild = guild.Name, users = userList };
+                // ตรวจสอบว่าผู้ใช้คนนี้อยู่ใน Voice Channel หรือไม่
+                if (user?.VoiceChannel != null)
+                {
+                    var targetChannel = user.VoiceChannel;
+                    this.CurrentGuildName = guild.Name;
+                    _lastChannel = targetChannel; // อัปเดตห้องล่าสุดที่ตรวจพบ
+
+                    // ดึงข้อมูลสมาชิกเฉพาะที่อยู่ใน Voice Channel เดียวกันเท่านั้น
+                    var userList = targetChannel.Users.Select(u => new
+                    {
+                        name = u.GlobalName ?? u.Username,
+                        avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
+                        status = u.Status.ToString().ToLower()
+                    }).ToList();
+
+                    return new { guild = guild.Name, users = userList };
+                }
+            }
+
+            // กรณีล็อกอินแล้วแต่ไม่ได้เข้าห้องเสียงใดๆ
+            return new { guild = "ไม่ได้อยู่ในห้องเสียง", users = new List<object>() };
         }
         catch
         {
