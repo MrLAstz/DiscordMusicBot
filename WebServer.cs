@@ -8,27 +8,29 @@ public static class WebServer
 {
     public static async Task StartAsync(string[] args, MusicService music)
     {
-        var builder = WebApplication.CreateBuilder(args);
-        var app = builder.Build();
-
-        app.MapGet("/", () => "🎵 Discord Music Bot is running");
-
-        app.MapPost("/join", async () =>
+        try
         {
-            await music.JoinFromWebAsync();
-            return Results.Ok("joined");
-        });
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
 
-        app.MapPost("/play", async (string url) =>
+            app.MapGet("/", () => "✅ Web server is running");
+
+            var port = Environment.GetEnvironmentVariable("PORT");
+            if (string.IsNullOrEmpty(port))
+            {
+                Console.WriteLine("❌ PORT not found, defaulting to 8080");
+                port = "8080";
+            }
+
+            Console.WriteLine($"🌐 Listening on 0.0.0.0:{port}");
+
+            await app.RunAsync($"http://0.0.0.0:{port}");
+        }
+        catch (Exception ex)
         {
-            await music.PlayFromWebAsync(url);
-            return Results.Ok("playing");
-        });
-
-        // ⭐ Railway PORT
-        var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-        Console.WriteLine($"🌐 Web listening on port {port}");
-
-        await app.RunAsync($"http://0.0.0.0:{port}");
+            Console.WriteLine("🔥 WebServer crashed");
+            Console.WriteLine(ex);
+            throw;
+        }
     }
 }
