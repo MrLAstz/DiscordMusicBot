@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using DiscordMusicBot.Bot;
 
 class Program
 {
@@ -6,15 +7,15 @@ class Program
     {
         var config = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: true) // 👈 แก้ตรงนี้
-            .AddEnvironmentVariables()                        // 👈 ใช้ Railway
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddEnvironmentVariables()
             .Build();
 
         var token = config["Discord:Token"];
 
         if (string.IsNullOrWhiteSpace(token))
         {
-            Console.WriteLine("Discord Token not found");
+            Console.WriteLine("❌ Discord Token not found");
             return;
         }
 
