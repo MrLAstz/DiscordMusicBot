@@ -1,44 +1,39 @@
-﻿using DiscordMusicBot.Music;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.FileProviders;
+﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Hosting;
+using DiscordMusicBot.Music;
 
 namespace DiscordMusicBot.Web;
 
 public static class WebServer
 {
-    public static async Task StartAsync(string[] args, MusicService music)
+    public static async Task StartAsync(MusicService music)
     {
-        try
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.UseUrls($"http://0.0.0.0:{GetPort()}");
+
+        var app = builder.Build();
+
+        app.UseDefaultFiles(); // index.html
+        app.UseStaticFiles();
+
+        app.MapPost("/join", async () =>
         {
-            var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-            Console.WriteLine($"🌐 PORT = {port}");
+            await music.JoinFirstAvailableAsync();
+            return Results.Ok("joined");
+        });
 
-            var builder = WebApplication.CreateBuilder(args);
-
-            // ✅ ชี้ไปที่ wwwroot
-            builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
-
-            var app = builder.Build();
-
-            // ✅ เปิด static files
-            app.UseStaticFiles(new StaticFileOptions
-            {
-                FileProvider = new PhysicalFileProvider(
-                    Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
-                RequestPath = ""
-            });
-
-            // health check
-            app.MapGet("/health", () => "OK");
-
-            Console.WriteLine("✅ Web server started");
-            await app.RunAsync();
-        }
-        catch (Exception ex)
+        app.MapPost("/play", async (string url) =>
         {
-            Console.WriteLine("🔥 WebServer crashed");
-            Console.WriteLine(ex);
-            throw;
-        }
+            await music.PlayFromUrlAsync(url);
+            return Results.Ok("playing");
+        });
+
+        Console.WriteLine($"🌐 Web listening on port {GetPort()}");
+
+        await app.RunAsync();
     }
+
+    private static string GetPort()
+        => Environment.GetEnvironmentVariable("PORT") ?? "8080";
 }
