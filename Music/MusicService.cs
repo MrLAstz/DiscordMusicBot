@@ -36,13 +36,16 @@ public class MusicService
 
     public async Task JoinLastAsync()
     {
-        // ถ้าไม่มี _lastChannel ให้พยายามหาห้องที่มีคนนั่งอยู่จาก Guild แรกที่บอทอยู่
         if (_lastChannel == null && _discordClient != null)
         {
+            // ✅ จุดที่ 1: ต้องมั่นใจว่าเป็น SocketGuild
             var firstGuild = _discordClient.Guilds.FirstOrDefault();
-            _lastChannel = firstGuild?.VoiceChannels
-                .OrderByDescending(v => v.Users.Count)
-                .FirstOrDefault();
+            if (firstGuild != null)
+            {
+                _lastChannel = firstGuild.VoiceChannels
+                    .OrderByDescending(v => v.Users.Count)
+                    .FirstOrDefault();
+            }
         }
 
         if (_lastChannel != null)
@@ -65,7 +68,6 @@ public class MusicService
         }
     }
 
-    // ✅ Logic ใหม่: ดึงข้อมูลสดจาก Discord ทันที
     public object GetUsersInVoice(ulong? guildId = null)
     {
         if (_discordClient == null || _discordClient.Guilds.Count == 0)
@@ -73,18 +75,30 @@ public class MusicService
 
         try
         {
-            // 1. เลือก Guild ที่จะแสดง: ตาม ID ที่ส่งมา หรือ Guild ล่าสุด หรือ Guild แรกที่เจอ
-            var guild = (guildId.HasValue ? _discordClient.GetGuild(guildId.Value) : null)
-                        ?? _lastChannel?.Guild
-                        ?? _discordClient.Guilds.First();
+            // ✅ จุดที่ 2: ใช้ SocketGuild เพื่อให้เข้าถึง .VoiceChannels ได้
+            SocketGuild? guild = null;
+
+            if (guildId.HasValue)
+            {
+                guild = _discordClient.GetGuild(guildId.Value);
+            }
+
+            if (guild == null)
+            {
+                guild = _lastChannel?.Guild as SocketGuild ?? _discordClient.Guilds.FirstOrDefault();
+            }
+
+            if (guild == null) return new { guild = "ไม่พบเซิร์ฟเวอร์", users = new List<object>() };
 
             this.CurrentGuildName = guild.Name;
 
-            // 2. เลือกห้องที่จะแสดงสมาชิก: ห้องที่บอทอยู่ หรือถ้าไม่มี ให้เอาห้องที่มีคนเยอะที่สุด
             _serverRooms.TryGetValue(guild.Id, out var joinedChannelId);
 
-            var targetChannel = guild.VoiceChannels.FirstOrDefault(c => c.Id == joinedChannelId)
-                                ?? guild.VoiceChannels.OrderByDescending(v => v.Users.Count).FirstOrDefault();
+            var targetChannel = guild.VoiceChannels
+                                .FirstOrDefault(c => c.Id == joinedChannelId)
+                                ?? guild.VoiceChannels
+                                    .OrderByDescending(v => v.Users.Count)
+                                    .FirstOrDefault();
 
             if (targetChannel == null)
                 return new { guild = guild.Name, users = new List<object>() };
