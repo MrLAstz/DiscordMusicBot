@@ -13,10 +13,11 @@
             --text-main: #ffffff;
             --text-dim: #aaa;
             --discord-blue: #5865F2;
+            --search-border: #333;
         }
 
         body {
-            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+            font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
             background: var(--bg-dark);
             color: var(--text-main);
             margin: 0;
@@ -58,33 +59,54 @@
         .search-area {
             display: flex;
             width: 100%;
+            align-items: center;
         }
 
         input#search {
             width: 100%;
-            padding: 12px 20px;
-            border-radius: 24px 0 0 24px;
-            border: 1px solid #333;
+            padding: 10px 20px;
+            border-radius: 40px 0 0 40px;
+            border: 1px solid var(--search-border);
             background: #121212;
             color: white;
             outline: none;
-            font-size: 15px;
+            font-size: 16px;
+            height: 40px;
+            box-sizing: border-box;
         }
 
+            input#search:focus {
+                border-color: #1c62b9;
+            }
+
         .search-btn {
-            padding: 10px 25px;
-            border-radius: 0 24px 24px 0;
-            border: 1px solid #333;
+            height: 40px;
+            padding: 0 20px;
+            border-radius: 0 40px 40px 0;
+            border: 1px solid var(--search-border);
             background: #222;
             color: white;
             cursor: pointer;
             border-left: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
+
+            .search-btn:hover {
+                background: #2a2a2a;
+            }
+
+            .search-btn svg {
+                fill: white;
+                width: 20px;
+                height: 20px;
+            }
 
         /* Suggestion Box */
         #suggestion-box {
             position: absolute;
-            top: 105%;
+            top: 45px;
             left: 0;
             right: 0;
             background: var(--suggest-bg);
@@ -93,24 +115,32 @@
             display: none;
             z-index: 1000;
             overflow: hidden;
-            padding: 8px 0;
+            padding: 12px 0;
         }
 
         .suggestion-item {
-            padding: 12px 20px;
+            padding: 8px 20px;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 15px;
             color: white;
-            transition: background 0.2s;
+            transition: background 0.1s;
+            font-weight: 500;
         }
 
             .suggestion-item:hover {
                 background: #3e3e3e;
             }
 
-        /* Auth Button */
+            .suggestion-item svg {
+                fill: #aaa;
+                width: 18px;
+                height: 18px;
+                flex-shrink: 0;
+            }
+
+        /* Rest of your styles... */
         .discord-login-btn {
             background: var(--discord-blue);
             text-decoration: none;
@@ -125,10 +155,6 @@
             border: none;
             transition: 0.2s;
         }
-
-            .discord-login-btn:hover {
-                background: #4752c4;
-            }
 
         .user-pill {
             display: flex;
@@ -147,7 +173,6 @@
             border-radius: 50%;
         }
 
-        /* Layout Main */
         .main-container {
             display: flex;
             flex: 1;
@@ -216,10 +241,6 @@
             transition: 0.2s;
         }
 
-            .user-item:hover {
-                background: rgba(255,255,255,0.05);
-            }
-
         .content {
             flex: 1;
             padding: 40px;
@@ -252,11 +273,6 @@
             font-size: 18px;
             transition: 0.2s;
         }
-
-            .btn-play:hover {
-                transform: scale(1.03);
-                background: #eee;
-            }
     </style>
 </head>
 <body>
@@ -268,13 +284,15 @@
             <div class="search-area">
                 <input id="search" placeholder="ค้นหาเพลงโปรดของคุณ..." autocomplete="off"
                        oninput="getSuggestions()" onfocus="showBox()" onkeypress="if(event.key==='Enter') search()">
-                <button class="search-btn" onclick="search()">🔍</button>
+                <button class="search-btn" onclick="search()" title="Search">
+                    <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" focusable="false"><g><path d="M20.87,20.17l-5.59-5.59C16.35,13.35,17,11.75,17,10c0-3.87-3.13-7-7-7s-7,3.13-7,7s3.13,7,7,7c1.75,0,3.35-0.65,4.58-1.71 l5.59,5.59L20.87,20.17z M10,16c-3.31,0-6-2.69-6-6s2.69-6,6-6s6,2.69,6,6S13.31,16,10,16z"></path></g></svg>
+                </button>
             </div>
             <div id="suggestion-box"></div>
         </div>
 
         <div id="auth-section">
-            <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app&scope=identify+guilds" class="discord-login-btn">
+            <a href="#" class="discord-login-btn">
                 <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
                 Login
             </a>
@@ -302,72 +320,10 @@
 
     <script>
         let timeout = null;
-        window.loggedUserId = null;
 
-        // --- 1. ระบบ Discord Login ---
-        async function handleDiscordLogin() {
-            // 1. ลองดึง token จาก URL (กรณีเพิ่งกด Login กลับมา)
-            const fragment = new URLSearchParams(window.location.hash.slice(1));
-            let accessToken = fragment.get('access_token');
+        // ฟังก์ชันดึงไอคอน Search สำหรับ Suggestion Item
+        const searchIconSVG = `<svg viewBox="0 0 24 24"><path d="M20.87,20.17l-5.59-5.59C16.35,13.35,17,11.75,17,10c0-3.87-3.13-7-7-7s-7,3.13-7,7s3.13,7,7,7c1.75,0,3.35-0.65,4.58-1.71 l5.59,5.59L20.87,20.17z M10,16c-3.31,0-6-2.69-6-6s2.69-6,6-6s6,2.69,6,6S13.31,16,10,16z"></path></svg>`;
 
-            // 2. ถ้าใน URL ไม่มี ให้ดูในเครื่องว่าเคย Login ไว้ไหม
-            if (!accessToken) {
-                accessToken = localStorage.getItem('discord_access_token');
-            }
-
-            if (accessToken) {
-                try {
-                    const response = await fetch('https://discord.com/api/users/@me', {
-                        headers: { Authorization: `Bearer ${accessToken}` }
-                    });
-
-                    if (!response.ok) throw new Error("Token expired");
-
-                    const user = await response.json();
-                    window.loggedUserId = user.id;
-
-                    // เก็บลงเครื่องไว้ใช้รอบหน้า
-                    localStorage.setItem('discord_access_token', accessToken);
-
-                    // แสดงผลโปรไฟล์
-                    document.getElementById('auth-section').innerHTML = `
-                <div class="user-menu-container" style="position: relative;">
-                    <div class="user-pill" onclick="toggleLogoutMenu()">
-                        <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
-                             class="nav-avatar"
-                             onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                        <span style="color: white;">${user.global_name || user.username}</span>
-                    </div>
-                    <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; z-index: 100;">
-                        <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left;">🚪 Logout</button>
-                    </div>
-                </div>
-            `;
-
-                    updateStatus();
-                    setInterval(updateStatus, 5000); // เช็คทุก 5 วินาทีพอ จะได้ไม่เปลือง Bandwidth
-                    window.history.replaceState({}, document.title, "/");
-
-                } catch (e) {
-                    console.error("Login Error:", e);
-                    localStorage.removeItem('discord_access_token'); // ลบ token ที่เสียทิ้ง
-                }
-            }
-        }
-
-        // แก้ฟังก์ชัน Logout ให้ล้างค่าในเครื่องด้วย
-        function logout() {
-            localStorage.removeItem('discord_access_token');
-            window.loggedUserId = null;
-            location.reload(); // รีโหลดหน้าเพื่อกลับไปสถานะ Login
-        }
-
-        function toggleLogoutMenu() {
-            const menu = document.getElementById("logout-menu");
-            menu.style.display = menu.style.display === "none" ? "block" : "none";
-        }
-
-        // --- 2. ระบบค้นหา (YouTube Suggestion) ---
         function getSuggestions() {
             const query = document.getElementById("search").value;
             const box = document.getElementById("suggestion-box");
@@ -389,7 +345,8 @@
 
             box.innerHTML = suggestions.map(item => `
                     <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
-                        <i style="color: #888;">🔍</i> ${item[0]}
+                        ${searchIconSVG}
+                        <span>${item[0]}</span>
                     </div>
                 `).join('');
             box.style.display = "block";
@@ -414,53 +371,13 @@
                 `;
         }
 
-        // --- 3. บงการบอท (Stateless) ---
-        async function updateStatus() {
-            if (!window.loggedUserId) return;
-            try {
-                const res = await fetch(`/status?userId=${window.loggedUserId}`);
-                const data = await res.json();
-                document.getElementById("guild-name").innerText = data.guild || "ไม่ได้เชื่อมต่อเสียง";
-
-                const userList = document.getElementById("user-list");
-                const users = data.users || [];
-                if (users.length > 0) {
-                    userList.innerHTML = users.map(u => {
-                        let color = "#747f8d";
-                        if (u.status === "online") color = "#3ba55c";
-                        if (u.status === "idle") color = "#faa61a";
-                        if (u.status === "dnd") color = "#ed4245";
-                        return `
-                                <div class="user-item">
-                                    <div class="avatar-wrapper">
-                                        <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                        <div class="status-dot" style="background-color: ${color}"></div>
-                                    </div>
-                                    <span style="color:#dbdee1;">${u.name}</span>
-                                </div>`;
-                    }).join('');
-                } else {
-                    userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้องเสียง</div>`;
-                }
-            } catch (e) { console.error("Status Error:", e); }
+        function showBox() {
+            const query = document.getElementById("search").value;
+            if (query.length >= 2) document.getElementById("suggestion-box").style.display = "block";
         }
 
-        async function play(query) {
-            if (!window.loggedUserId) { alert("กรุณา Login ก่อนครับ"); return; }
-            const params = new URLSearchParams({ url: query, userId: window.loggedUserId });
-            await fetch(`/play?${params.toString()}`, { method: "POST" });
-        }
-
-        // เริ่มต้น
-        handleDiscordLogin();
-
-        // ปิดเมนูเมื่อคลิกข้างนอก
         document.addEventListener("click", (e) => {
             if (!e.target.closest('.search-container')) document.getElementById("suggestion-box").style.display = "none";
-            if (!e.target.closest('.user-menu-container')) {
-                const menu = document.getElementById("logout-menu");
-                if (menu) menu.style.display = "none";
-            }
         });
     </script>
 </body>
