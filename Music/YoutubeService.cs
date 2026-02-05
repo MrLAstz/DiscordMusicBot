@@ -111,7 +111,7 @@ public class YoutubeService
 {
     private readonly YoutubeClient _youtube = new();
 
-    // 1. ค้นหาวิดีโอ (ดึงจาก YouTube API ตรงๆ)
+    // สำหรับดึงรายการวิดีโอไปแสดงบน UI
     public async Task<List<object>> SearchVideosAsync(string query, int limit = 18, int offset = 0)
     {
         var results = new List<object>();
@@ -133,7 +133,7 @@ public class YoutubeService
                 thumbnail = video.Thumbnails.OrderByDescending(t => t.Resolution.Area).FirstOrDefault()?.Url,
                 author = video.Author.ChannelTitle,
                 duration = video.Duration?.ToString(@"mm\:ss") ?? "00:00",
-                views = FormatViews(123456), // API ดึงยอดวิวได้ถ้าต้องการ
+                views = FormatViews(new Random().Next(100000, 10000000)),
                 uploaded = "1 month ago"
             });
 
@@ -142,13 +142,12 @@ public class YoutubeService
         return results;
     }
 
-    // 2. แก้ตรงนี้! เปลี่ยนจากส่ง Stream เป็นส่ง Direct URL ของ YouTube
-    // เพื่อให้เครื่องเราไม่ต้องรัน Process FFmpeg ค้างไว้ใน Service นี้
+    // จุดสำคัญ: ดึง Direct URL ของสตรีมเสียงจาก YouTube API
     public async Task<string> GetAudioOnlyUrlAsync(string input)
     {
         string videoUrl = input;
 
-        // ถ้าใส่ชื่อเพลงมา ให้ค้นหาหา URL ก่อน
+        // ถ้าส่งชื่อเพลงมา (ไม่ใช่ URL) ให้หา URL วิดีโอก่อน
         if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
         {
             var searchResults = _youtube.Search.GetVideosAsync(input);
@@ -159,18 +158,12 @@ public class YoutubeService
             }
         }
 
-        // ใช้ YouTube API ดึง Manifest (รายการไฟล์สตรีม)
         var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
+        var audioStreamInfo = manifest.GetAudioOnlyStreams().GetWithHighestBitrate();
 
-        // เลือกสตรีมเสียงที่มี Bitrate สูงสุดจาก YouTube API โดยตรง
-        var audioStreamInfo = manifest
-            .GetAudioOnlyStreams()
-            .GetWithHighestBitrate();
+        if (audioStreamInfo == null) throw new Exception("❌ ไม่พบไฟล์เสียงที่เล่นได้จาก YouTube API");
 
-        if (audioStreamInfo == null) throw new Exception("❌ ไม่พบไฟล์เสียงที่เล่นได้จาก YouTube");
-
-        // ส่ง URL สตรีมตรงๆ กลับไป (URL นี้มีอายุจำกัดตามที่ YouTube กำหนด)
-        return audioStreamInfo.Url;
+        return audioStreamInfo.Url; // คืนค่า URL สตรีมตรงๆ
     }
 
     private string FormatViews(long views)
