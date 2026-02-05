@@ -1,43 +1,36 @@
-﻿using Discord;
-using Discord.WebSocket;
+﻿using DiscordMusicBot.Bot;
 using DiscordMusicBot.Music;
+using DiscordMusicBot.Web;
 
-namespace DiscordMusicBot.Bot;
-
-public class BotService
+class Program
 {
-    private readonly DiscordSocketClient _client;
-    private readonly string _token;
-    private readonly MusicService _music;
-
-    public BotService(string token, MusicService music)
+    static async Task Main(string[] args)
     {
-        _token = token;
-        _music = music;
+        var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
+        // Railway จะส่งพอร์ตมาให้ผ่านตัวแปร PORT
+        var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 
-        // ✅ แก้ไข: เพิ่ม Config เพื่อให้บอทมองเห็นสมาชิกและสถานะออนไลน์
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            Console.WriteLine("❌ DISCORD_TOKEN not found");
+            return;
+        }
         var config = new DiscordSocketConfig
         {
-            GatewayIntents = GatewayIntents.AllUnprivileged |
-                             GatewayIntents.GuildPresences |
-                             GatewayIntents.GuildMembers |
-                             GatewayIntents.GuildVoiceStates,
-            AlwaysDownloadUsers = true, // โหลดสมาชิกทั้งหมดมาไว้ใน Cache
-            MessageCacheSize = 100
+            // หัวใจสำคัญคือบรรทัดนี้ครับ เพื่อให้บอทมองเห็นว่าใครเข้า/ออกห้อง Voice
+            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.GuildPresences | GatewayIntents.GuildMembers
         };
 
         _client = new DiscordSocketClient(config);
-    }
+        var music = new MusicService();
 
-    public async Task StartAsync()
-    {
-        await _client.LoginAsync(TokenType.Bot, _token);
-        await _client.StartAsync();
+        // ▶️ เปิดเว็บ (ส่ง port เข้าไปด้วย)
+        _ = Task.Run(() => WebServer.Start(args, music, port));
 
-        _client.Ready += () =>
-        {
-            Console.WriteLine($"✅ บอทออนไลน์แล้ว: {_client.CurrentUser.Username}");
-            return Task.CompletedTask;
-        };
+        // ▶️ เปิดบอท
+        var bot = new BotService(token, music);
+        await bot.StartAsync();
+
+        await Task.Delay(-1);
     }
 }
