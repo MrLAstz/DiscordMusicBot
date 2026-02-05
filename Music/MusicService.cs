@@ -55,7 +55,7 @@ public class MusicService
             var user = guild.GetUser(userId) ?? (await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser);
             if (user?.VoiceChannel != null)
             {
-                // หยุดเพลงเดิมก่อนถ้ามีเล่นอยู่
+                // 1. หยุดเพลงเดิมก่อน
                 if (_cts.TryRemove(guild.Id, out var oldCts))
                 {
                     oldCts.Cancel();
@@ -65,6 +65,7 @@ public class MusicService
                 var newCts = new CancellationTokenSource();
                 _cts[guild.Id] = newCts;
 
+                // 2. เช็คการเชื่อมต่อห้องเสียง
                 if (!_audioClients.ContainsKey(guild.Id))
                 {
                     await JoinAsync(user.VoiceChannel);
@@ -72,19 +73,33 @@ public class MusicService
 
                 if (_audioClients.TryGetValue(guild.Id, out var audioClient))
                 {
-                    // เล่นเพลงในพื้นหลังเพื่อให้หน้าเว็บทำงานต่อได้ทันที
                     _ = Task.Run(async () =>
                     {
                         try
                         {
-                            using var stream = await _youtube.GetAudioStreamAsync(url);
+                            // --- จุดที่แก้: ดึง URL ตรงจาก YouTube API ---
+                            string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
+
+                            // --- จุดที่แก้: ให้ FFmpeg รับ Input จาก URL โดยตรง (Streaming) ---
+                            // ใช้ flag -reconnect เพื่อความเสถียรเมื่อเน็ตสะดุด
+                            var ffmpegArgs = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -i \"{streamUrl}\" -ac 2 -f s16le -ar 48000 -loglevel panic pipe:1";
+
+                            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = "ffmpeg",
+                                Arguments = ffmpegArgs,
+                                RedirectStandardOutput = true,
+                                UseShellExecute = false,
+                                CreateNoWindow = true
+                            });
+
                             using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
 
-                            // ส่งเสียงพร้อม Token เพื่อให้สามารถยกเลิก (Skip) ได้
-                            await stream.CopyToAsync(discord, newCts.Token);
+                            // ส่งเสียงไปยัง Discord
+                            await process.StandardOutput.BaseStream.CopyToAsync(discord, newCts.Token);
                             await discord.FlushAsync();
                         }
-                        catch (OperationCanceledException) { /* เพลงถูกข้ามโดยเจตนา */ }
+                        catch (OperationCanceledException) { /* กดข้ามเพลง */ }
                         catch (Exception ex) { Console.WriteLine($"Playback Error: {ex.Message}"); }
                         finally
                         {
