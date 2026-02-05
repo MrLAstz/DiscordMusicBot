@@ -3,22 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MrLastBot - Music Dashboard</title>
+    <title>MrLastBot - Premium Music Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --yt-red: #ff0000;
-            --bg-dark: #0f0f0f;
-            --card-bg: #1e1e1e;
-            --suggest-bg: #282828;
+            --primary-red: #ff4757;
+            --discord-blurple: #5865F2;
+            --bg-deep: #050505;
+            --card-glass: rgba(255, 255, 255, 0.03);
+            --border-glass: rgba(255, 255, 255, 0.08);
             --text-main: #ffffff;
-            --text-dim: #aaa;
-            --discord-blue: #5865F2;
-            --accent-green: #10b981;
+            --text-dim: #a0a0a0;
+            --accent-green: #1ed760;
+        }
+
+        * {
+            box-sizing: border-box;
+            transition: all 0.25s ease;
+            font-family: 'Inter', sans-serif;
         }
 
         body {
-            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-            background: var(--bg-dark);
+            background: radial-gradient(circle at top right, #1a1a2e, var(--bg-deep));
             color: var(--text-main);
             margin: 0;
             display: flex;
@@ -27,302 +33,326 @@
             overflow: hidden;
         }
 
-        /* --- Header & Navigation --- */
+        /* --- Navigation Bar --- */
         nav {
-            background: var(--bg-dark);
-            padding: 10px 25px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(15px);
+            padding: 0 30px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid #333;
-            height: 65px;
-            gap: 20px;
+            height: 75px;
+            border-bottom: 1px solid var(--border-glass);
+            z-index: 100;
         }
 
         .logo {
-            font-size: 1.4em;
-            font-weight: bold;
-            color: var(--yt-red);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            white-space: nowrap;
+            font-size: 1.5em;
+            font-weight: 800;
+            background: linear-gradient(to right, var(--primary-red), #ff6b81);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
         }
 
-        /* Search Bar */
+        /* Search Bar Modernized */
         .search-container {
             flex: 1;
-            max-width: 600px;
+            max-width: 550px;
             position: relative;
+            margin: 0 20px;
         }
 
         .search-area {
             display: flex;
-            width: 100%;
+            background: var(--card-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 50px;
+            padding: 2px;
         }
 
         input#search {
-            width: 100%;
-            padding: 12px 20px;
-            border-radius: 24px 0 0 24px;
-            border: 1px solid #333;
-            background: #121212;
+            background: transparent;
+            border: none;
             color: white;
+            padding: 12px 25px;
+            width: 100%;
             outline: none;
-            font-size: 15px;
+            font-size: 14px;
         }
 
         .search-btn {
-            padding: 0 20px;
-            border-radius: 0 24px 24px 0;
-            border: 1px solid #333;
-            background: #222;
-            color: white;
+            background: var(--primary-red);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
-            border-left: none;
             display: flex;
             align-items: center;
             justify-content: center;
+            margin-right: 2px;
         }
 
             .search-btn:hover {
-                background: #272727;
+                transform: scale(1.1);
+                box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
             }
-
-        #suggestion-box {
-            position: absolute;
-            top: 105%;
-            left: 0;
-            right: 0;
-            background: var(--suggest-bg);
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            display: none;
-            z-index: 1000;
-            overflow: hidden;
-            padding: 8px 0;
-        }
-
-        .suggestion-item {
-            padding: 12px 20px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            transition: background 0.2s;
-        }
-
-            .suggestion-item:hover {
-                background: #3e3e3e;
-            }
-
-        /* Auth Button */
-        .discord-login-btn {
-            background: var(--discord-blue);
-            text-decoration: none;
-            color: white;
-            border-radius: 20px;
-            padding: 10px 18px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: bold;
-            transition: 0.2s;
-        }
-
-        .user-pill {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: #2b2d31;
-            padding: 6px 14px;
-            border-radius: 20px;
-            border: 1px solid #444;
-            cursor: pointer;
-        }
-
-        .nav-avatar {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-        }
 
         /* --- Main Layout --- */
         .main-container {
             display: flex;
             flex: 1;
             overflow: hidden;
-        }
-
-        .sidebar {
-            width: 280px;
-            background: var(--bg-dark);
             padding: 20px;
-            border-right: 1px solid #333;
-            overflow-y: auto;
+            gap: 20px;
         }
 
-        .status-card {
-            background: var(--card-bg);
-            padding: 18px;
-            border-radius: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #2a2a2a;
+        /* Sidebar Glass Style */
+        .sidebar {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .glass-panel {
+            background: var(--card-glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 25px;
         }
 
         .status-title {
-            font-size: 0.75em;
+            font-size: 10px;
+            font-weight: 700;
             color: var(--text-dim);
             text-transform: uppercase;
-            margin-bottom: 10px;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+            display: block;
         }
 
         .guild-name {
             color: var(--accent-green);
-            font-weight: bold;
-            font-size: 1.1em;
+            font-weight: 700;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(30, 215, 96, 0.2);
         }
 
-        /* Controller Buttons */
         .btn-stop {
             width: 100%;
-            margin-top: 12px;
-            padding: 10px;
-            background: #2a2a2a;
+            padding: 12px;
+            background: rgba(237, 66, 69, 0.1);
             color: #ed4245;
-            border: 1px solid #444;
-            border-radius: 8px;
+            border: 1px solid rgba(237, 66, 69, 0.3);
+            border-radius: 12px;
             cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
+            font-weight: 700;
         }
 
             .btn-stop:hover {
-                background: #3a1c1c;
+                background: #ed4245;
+                color: white;
             }
 
-        /* User List Styles */
+        /* User List */
         .user-item {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 8px;
-            border-radius: 8px;
+            gap: 15px;
+            padding: 10px;
+            border-radius: 15px;
         }
+
+            .user-item:hover {
+                background: var(--card-glass);
+            }
 
         .avatar-wrapper {
             position: relative;
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 40px;
         }
 
         .user-avatar {
             width: 100%;
             height: 100%;
-            border-radius: 50%;
+            border-radius: 12px;
             object-fit: cover;
         }
 
         .status-dot {
             position: absolute;
-            bottom: -1px;
-            right: -1px;
-            width: 10px;
-            height: 10px;
+            bottom: -2px;
+            right: -2px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            border: 2px solid #1e1e1e;
+            border: 3px solid #0a0a0a;
         }
 
-        /* Content Area */
+        /* --- Player Content Area --- */
         .content {
             flex: 1;
-            padding: 40px;
-            overflow-y: auto;
             display: flex;
-            flex-direction: column;
             align-items: center;
+            justify-content: center;
+            perspective: 1000px;
         }
 
         .player-card {
-            background: var(--card-bg);
-            padding: 30px;
-            border-radius: 16px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--border-glass);
+            padding: 50px;
+            border-radius: 40px;
             width: 100%;
-            max-width: 480px;
+            max-width: 500px;
             text-align: center;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-            margin-top: 50px;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+        }
+
+        .artwork-circle {
+            width: 220px;
+            height: 220px;
+            margin: 0 auto 30px;
+            background: #121212;
+            border-radius: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 90px;
+            position: relative;
+            box-shadow: 0 15px 45px rgba(0,0,0,0.4);
+        }
+
+            .artwork-circle::after {
+                content: '';
+                position: absolute;
+                inset: -2px;
+                border-radius: 37px;
+                background: linear-gradient(45deg, var(--primary-red), var(--discord-blurple));
+                z-index: -1;
+                opacity: 0.4;
+            }
+
+        .song-title {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 35px;
+            letter-spacing: -0.5px;
         }
 
         .btn-play {
-            background: white;
-            color: black;
+            background: #ffffff;
+            color: #000;
             border: none;
-            padding: 15px 40px;
-            border-radius: 30px;
+            padding: 18px 45px;
+            border-radius: 20px;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 800;
             width: 100%;
-            font-size: 18px;
-            transition: 0.2s;
+            font-size: 16px;
+            box-shadow: 0 10px 20px rgba(255,255,255,0.1);
         }
 
             .btn-play:hover {
-                transform: scale(1.03);
-                background: #eee;
+                transform: translateY(-5px);
+                background: #f0f0f0;
+                box-shadow: 0 15px 30px rgba(255,255,255,0.2);
             }
 
-            .btn-play:disabled {
-                background: #555;
-                cursor: not-allowed;
-                color: #888;
+        /* Discord Login Pill */
+        .user-pill {
+            background: var(--card-glass);
+            padding: 8px 20px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid var(--border-glass);
+        }
+
+        #suggestion-box {
+            position: absolute;
+            top: 110%;
+            left: 0;
+            right: 0;
+            background: rgba(20, 20, 20, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid var(--border-glass);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+            display: none;
+            z-index: 1000;
+            overflow: hidden;
+            padding: 10px 0;
+        }
+
+        .suggestion-item {
+            padding: 12px 25px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+            .suggestion-item:hover {
+                background: var(--primary-red);
+                color: white;
             }
     </style>
 </head>
 <body>
 
     <nav>
-        <div class="logo">🔴 <span>MrLastBot</span></div>
+        <div class="logo">MrLastBot</div>
 
         <div class="search-container">
             <div class="search-area">
-                <input id="search" placeholder="ค้นหาเพลง หรือวางลิงก์ YouTube..." autocomplete="off"
+                <input id="search" placeholder="ค้นหาเพลงโปรดของคุณ..." autocomplete="off"
                        oninput="getSuggestions()" onfocus="showBox()" onkeypress="if(event.key==='Enter') search()">
                 <button class="search-btn" onclick="search()">
-                    <svg style="width:20px;height:20px;fill:white" viewBox="0 0 24 24"><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></svg>
+                    <svg width="20" height="20" fill="white" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
                 </button>
             </div>
             <div id="suggestion-box"></div>
         </div>
 
         <div id="auth-section">
-            <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app&scope=identify+guilds" class="discord-login-btn">
-                <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
-                Login
-            </a>
+            <a href="YOUR_DISCORD_AUTH_URL" class="discord-login-btn" style="color: white; text-decoration: none; background: var(--discord-blurple); padding: 10px 20px; border-radius: 50px; font-weight: 600;">Login with Discord</a>
         </div>
     </nav>
 
     <div class="main-container">
-        <div class="sidebar">
-            <div class="status-card">
-                <div class="status-title">📍 Current Server</div>
-                <div id="guild-name" class="guild-name">กรุณา Login</div>
-                <button class="btn-stop" onclick="stopMusic()">⏹ หยุดเพลง</button>
+        <aside class="sidebar">
+            <div class="glass-panel">
+                <span class="status-title">📍 Current Location</span>
+                <div id="guild-name" class="guild-name">ยังไม่ได้เชื่อมต่อ</div>
+                <button class="btn-stop" onclick="stopMusic()">STOP MUSIC</button>
             </div>
-            <div class="status-card">
-                <div class="status-title">👥 Voice Members</div>
-                <div id="user-list"><i style="color: #666;">เข้าห้องเสียงเพื่อดูสมาชิก</i></div>
-            </div>
-        </div>
 
-        <div class="content">
-            <div id="player-display" style="width: 100%; display: flex; justify-content: center;">
-                <h2 style="color: #333; margin-top: 100px; text-align: center;">ค้นหาเพลงด้านบนเพื่อเริ่มความมันส์ 🎵</h2>
+            <div class="glass-panel" style="flex: 1;">
+                <span class="status-title">👥 Voice Members</span>
+                <div id="user-list">
+                    <i style="color: var(--text-dim); font-size: 13px;">รอการเชื่อมต่อเสียง...</i>
+                </div>
             </div>
-        </div>
+        </aside>
+
+        <main class="content">
+            <div id="player-display">
+                <div class="player-card">
+                    <div class="artwork-circle">🎵</div>
+                    <div class="song-title">เลือกเพลงเพื่อเริ่มการเดินทาง</div>
+                    <button id="main-play-btn" class="btn-play" onclick="play()">START THE BEAT</button>
+                </div>
+            </div>
+        </main>
     </div>
-
     <script>
         let timeout = null;
         window.loggedUserId = null;
@@ -344,11 +374,11 @@
                     localStorage.setItem('discord_access_token', accessToken);
 
                     document.getElementById('auth-section').innerHTML = `
-                            <div class="user-pill" onclick="logout()">
-                                <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
-                                     class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                <span style="color: white;">${user.global_name || user.username}</span>
-                            </div>`;
+                                <div class="user-pill" onclick="logout()">
+                                    <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
+                                         class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                    <span style="color: white;">${user.global_name || user.username}</span>
+                                </div>`;
 
                     updateStatus();
                     setInterval(updateStatus, 5000);
@@ -387,10 +417,10 @@
             if (!suggestions?.length) { box.style.display = "none"; return; }
 
             box.innerHTML = suggestions.map(item => `
-                    <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
-                        <svg style="width:16px;height:16px;fill:#888" viewBox="0 0 24 24"><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></svg>
-                        ${item[0]}
-                    </div>`).join('');
+                        <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
+                            <svg style="width:16px;height:16px;fill:#888" viewBox="0 0 24 24"><path d="M20.87,20.25l-5.27-5.27C16.55,13.67,17.18,12.16,17.18,10.5c0-3.69-3-6.69-6.68-6.69S3.81,6.81,3.81,10.5s3,6.69,6.68,6.69 c1.66,0,3.17-0.63,4.48-1.58l5.27,5.27L20.87,20.25z M10.5,16.19c-3.14,0-5.69-2.55-5.69-5.69s2.55-5.69,5.69-5.69 s5.69,2.55,5.69,5.69S13.64,16.19,10.5,16.19z"></path></svg>
+                            ${item[0]}
+                        </div>`).join('');
             box.style.display = "block";
         }
 
@@ -405,11 +435,11 @@
             if (!q) return;
             document.getElementById("suggestion-box").style.display = "none";
             document.getElementById("player-display").innerHTML = `
-                    <div class="player-card">
-                        <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
-                        <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
-                        <button id="main-play-btn" class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
-                    </div>`;
+                        <div class="player-card">
+                            <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
+                            <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
+                            <button id="main-play-btn" class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
+                        </div>`;
         }
 
         function showBox() {
@@ -454,13 +484,13 @@
                     userList.innerHTML = data.users.map(u => {
                         let color = u.status === "online" ? "#3ba55c" : u.status === "idle" ? "#faa61a" : u.status === "dnd" ? "#ed4245" : "#747f8d";
                         return `
-                                <div class="user-item">
-                                    <div class="avatar-wrapper">
-                                        <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                        <div class="status-dot" style="background-color: ${color}"></div>
-                                    </div>
-                                    <span style="color:#dbdee1;">${u.name}</span>
-                                </div>`;
+                                    <div class="user-item">
+                                        <div class="avatar-wrapper">
+                                            <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                            <div class="status-dot" style="background-color: ${color}"></div>
+                                        </div>
+                                        <span style="color:#dbdee1;">${u.name}</span>
+                                    </div>`;
                     }).join('');
                 } else {
                     userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้องเสียง</div>`;
