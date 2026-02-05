@@ -331,19 +331,35 @@
                     const user = await response.json();
 
                     document.getElementById('auth-section').innerHTML = `
-                            <div class="user-pill">
-                                <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
-                                     class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                <span class="user-name-text">${user.global_name || user.username}</span>
-                            </div>
-                        `;
+                                <div class="user-pill">
+                                    <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
+                                         class="nav-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                    <span class="user-name-text">${user.global_name || user.username}</span>
+                                </div>
+                            `;
                     window.loggedUserId = user.id;
+
+                    // ✅ หลังจาก Login สำเร็จ ให้เริ่มดึง Status ทันที
+                    updateStatus();
+                    setInterval(updateStatus, 3000);
+
                     window.history.replaceState({}, document.title, "/");
-                } catch (e) { console.error("Login Error:", e); }
+                } catch (e) {
+                    console.error("Login Error:", e);
+                    showLoginPrompt();
+                }
+            } else {
+                showLoginPrompt();
             }
         }
 
-        // --- 2. ระบบค้นหาและ Suggestion ---
+        // ฟังก์ชันช่วยแสดงสถานะตอนยังไม่ได้ Login
+        function showLoginPrompt() {
+            document.getElementById("guild-name").innerText = "กรุณา Login ก่อน";
+            document.getElementById("user-list").innerHTML = `<div style="color:#666; padding:10px;">เข้าสู่ระบบเพื่อดูสมาชิกในห้อง</div>`;
+        }
+
+        // --- 2. ระบบค้นหาและ Suggestion --- (เหมือนเดิม)
         function getSuggestions() {
             const query = document.getElementById("search").value;
             const box = document.getElementById("suggestion-box");
@@ -364,10 +380,10 @@
             if (!suggestions?.length) { box.style.display = "none"; return; }
 
             box.innerHTML = suggestions.map(item => `
-                    <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
-                        <i style="color: #888;">🔍</i> ${item[0]}
-                    </div>
-                `).join('');
+                        <div class="suggestion-item" onclick="selectSuggestion('${item[0].replace(/'/g, "\\'")}')">
+                            <i style="color: #888;">🔍</i> ${item[0]}
+                        </div>
+                    `).join('');
             box.style.display = "block";
         }
 
@@ -382,18 +398,22 @@
             if (!q) return;
             document.getElementById("suggestion-box").style.display = "none";
             document.getElementById("player-display").innerHTML = `
-                    <div class="player-card">
-                        <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
-                        <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
-                        <button class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
-                    </div>
-                `;
+                        <div class="player-card">
+                            <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px;">🎵</div>
+                            <h2 style="color: white; margin-bottom: 30px;">${q}</h2>
+                            <button class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลง</button>
+                        </div>
+                    `;
         }
 
         // --- 3. ระบบควบคุมบอท ---
         async function updateStatus() {
+            // ✅ ถ้าไม่มี ID ไม่ต้องยิงไปถามบอท (ช่วยให้บอทไม่จำและประหยัด Resource)
+            if (!window.loggedUserId) return;
+
             try {
-                const res = await fetch("/status");
+                // ส่ง userId ไปด้วยเพื่อให้บอทรู้ว่าต้องเช็ค Status ของ Server ไหนที่คุณอยู่
+                const res = await fetch(`/status?userId=${window.loggedUserId}`);
                 const data = await res.json();
                 document.getElementById("guild-name").innerText = data.guild || "ไม่ได้เชื่อมต่อ";
 
@@ -407,13 +427,13 @@
                         if (u.status === "dnd") color = "#ed4245";
 
                         return `
-                            <div class="user-item">
-                                <div class="avatar-wrapper">
-                                    <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                    <div class="status-dot" style="background-color: ${color}"></div>
-                                </div>
-                                <span style="color:#dbdee1;">${u.name}</span>
-                            </div>`;
+                                <div class="user-item">
+                                    <div class="avatar-wrapper">
+                                        <img src="${u.avatar}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                        <div class="status-dot" style="background-color: ${color}"></div>
+                                    </div>
+                                    <span style="color:#dbdee1;">${u.name}</span>
+                                </div>`;
                     }).join('');
                 } else {
                     userList.innerHTML = `<div style="color:#666; padding:10px;">ไม่มีใครอยู่ในห้อง</div>`;
@@ -421,13 +441,11 @@
             } catch (e) { console.error("Update Status Error:", e); }
         }
 
-        // ในส่วนกดเล่นเพลง
         async function play(query) {
             if (!window.loggedUserId) {
                 alert("กรุณา Login ก่อนครับ");
                 return;
             }
-            // ต้องส่ง userId ไปใน Query String ด้วยบอทถึงจะทำงานแบบ Stateless ได้
             const params = new URLSearchParams({
                 url: query,
                 userId: window.loggedUserId
@@ -435,21 +453,18 @@
             await fetch(`/play?${params.toString()}`, { method: "POST" });
         }
 
-        // ในส่วนกด Join
         async function join() {
             if (!window.loggedUserId) {
                 alert("กรุณา Login ก่อนครับ");
                 return;
             }
+            // บอทจะวิ่งไปหาห้องที่คุณอยู่ ณ ตอนนั้นทันที
             await fetch(`/join?userId=${window.loggedUserId}`, { method: "POST" });
         }
 
-        // เริ่มต้นระบบ
+        // เริ่มต้นระบบเฉพาะส่วน Login
         handleDiscordLogin();
-        setInterval(updateStatus, 3000);
-        updateStatus();
 
-        // ปิดกล่องแนะนำเมื่อคลิกที่อื่น
         document.addEventListener("click", (e) => {
             if (!e.target.closest('.search-container')) document.getElementById("suggestion-box").style.display = "none";
         });

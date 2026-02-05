@@ -12,7 +12,7 @@ public class MusicService
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
-    private IVoiceChannel? _lastChannel;
+    private IVoiceChannel? _lastChannel; // จะถูก update ตามตำแหน่งปัจจุบันของ User เสมอ
 
     public string CurrentGuildName { get; set; } = "ไม่ได้เชื่อมต่อ";
 
@@ -23,22 +23,21 @@ public class MusicService
 
     public async Task JoinAsync(IVoiceChannel channel)
     {
+        // Stateless: เราจะไม่สนห้องเก่า แต่จะกระโดดเข้าห้องปัจจุบันที่ส่งมาทันที
         _lastChannel = channel;
         _serverRooms[channel.Guild.Id] = channel.Id;
         CurrentGuildName = channel.Guild.Name;
 
-        if (!_audioClients.ContainsKey(channel.Guild.Id))
-        {
-            var audioClient = await channel.ConnectAsync();
-            _audioClients[channel.Guild.Id] = audioClient;
-        }
+        // เชื่อมต่อใหม่เสมอเพื่อให้แน่ใจว่าบอทอยู่ในห้องเดียวกับ User
+        var audioClient = await channel.ConnectAsync();
+        _audioClients[channel.Guild.Id] = audioClient;
     }
 
-    // ✅ เพิ่มฟังก์ชันใหม่: ให้บอทวิ่งไปหา userId ที่ระบุ
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
         if (_discordClient == null) return false;
 
+        // Stateless Check: วนหาตำแหน่งจริงของ User ณ วินาทีนี้ในทุก Guild
         foreach (var guild in _discordClient.Guilds)
         {
             var user = guild.GetUser(userId);
@@ -53,20 +52,18 @@ public class MusicService
 
     public async Task JoinLastAsync()
     {
-        if (_lastChannel == null && _discordClient != null)
+        // ระบบ Fallback: ถ้าหา User ไม่เจอจริงๆ ถึงจะสุ่มเข้าห้องที่มีคน
+        if (_discordClient != null)
         {
             var firstGuild = _discordClient.Guilds.FirstOrDefault();
             if (firstGuild != null)
             {
-                _lastChannel = firstGuild.VoiceChannels
+                var target = firstGuild.VoiceChannels
                     .OrderByDescending(v => v.Users.Count)
                     .FirstOrDefault();
-            }
-        }
 
-        if (_lastChannel != null)
-        {
-            await JoinAsync(_lastChannel);
+                if (target != null) await JoinAsync(target);
+            }
         }
     }
 
@@ -77,28 +74,33 @@ public class MusicService
         foreach (var guild in _discordClient.Guilds)
         {
             var user = guild.GetUser(userId);
-            // เช็คตำแหน่ง User แบบสดๆ (Stateless)
-            if (user?.VoiceChannel != null && _audioClients.TryGetValue(guild.Id, out var audioClient))
+            // Stateless Play: ต้องเจอตัว User ในห้อง Voice ก่อนถึงจะเล่น
+            if (user?.VoiceChannel != null)
             {
+                // ถ้าบอทไม่ได้อยู่ในห้องเดียวกับ User ให้สั่ง Join ก่อน
+                if (!_audioClients.ContainsKey(guild.Id))
+                {
+                    await JoinAsync(user.VoiceChannel);
+                }
+
                 var stream = await _youtube.GetAudioStreamAsync(url);
-                using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
-                await stream.CopyToAsync(discord);
-                await discord.FlushAsync();
-                return;
+                if (_audioClients.TryGetValue(guild.Id, out var audioClient))
+                {
+                    using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
+                    await stream.CopyToAsync(discord);
+                    await discord.FlushAsync();
+                    return;
+                }
             }
         }
     }
 
-    // เพิ่ม Method นี้เข้าไปเพื่อให้ WebServer.cs เรียกใช้ได้เวลาไม่มี userId
     public async Task PlayLastAsync(string url)
     {
-        // ถ้าไม่รู้ว่าห้องไหน ให้พยายามหาห้องที่มีคนก่อน
-        if (_lastChannel == null) await JoinLastAsync();
-        if (_lastChannel == null) return;
-
-        var stream = await _youtube.GetAudioStreamAsync(url);
-        if (_audioClients.TryGetValue(_lastChannel.Guild.Id, out var audioClient))
+        // หากไม่มี userId ส่งมา ให้พยายามเล่นในห้องที่บอทแฝงตัวอยู่ปัจจุบัน
+        if (_lastChannel != null && _audioClients.TryGetValue(_lastChannel.Guild.Id, out var audioClient))
         {
+            var stream = await _youtube.GetAudioStreamAsync(url);
             using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
             await stream.CopyToAsync(discord);
             await discord.FlushAsync();
@@ -112,33 +114,24 @@ public class MusicService
 
         try
         {
-            SocketGuild? guild = null;
-
-            if (guildId.HasValue)
-            {
-                guild = _discordClient.GetGuild(guildId.Value);
-            }
-
-            if (guild == null)
-            {
-                guild = _lastChannel?.Guild as SocketGuild ?? _discordClient.Guilds.FirstOrDefault();
-            }
+            // ดึง Guild ปัจจุบันจากสถานะสด
+            SocketGuild? guild = guildId.HasValue
+                ? _discordClient.GetGuild(guildId.Value)
+                : (_lastChannel?.Guild as SocketGuild ?? _discordClient.Guilds.FirstOrDefault());
 
             if (guild == null) return new { guild = "ไม่พบเซิร์ฟเวอร์", users = new List<object>() };
 
             this.CurrentGuildName = guild.Name;
 
-            _serverRooms.TryGetValue(guild.Id, out var joinedChannelId);
-
+            // หาห้องที่มีบอทหรือคนอยู่จริง ณ ตอนนี้
             var targetChannel = guild.VoiceChannels
-                                .FirstOrDefault(c => c.Id == joinedChannelId)
-                                ?? guild.VoiceChannels
-                                    .OrderByDescending(v => v.Users.Count)
-                                    .FirstOrDefault();
+                                .FirstOrDefault(c => _audioClients.ContainsKey(guild.Id) && c.Id == _lastChannel?.Id)
+                                ?? guild.VoiceChannels.OrderByDescending(v => v.Users.Count).FirstOrDefault();
 
             if (targetChannel == null)
                 return new { guild = guild.Name, users = new List<object>() };
 
+            // แสดงเฉพาะคนที่อยู่ใน Voice จริงๆ
             var userList = targetChannel.Users.Select(u => new
             {
                 name = u.GlobalName ?? u.Username,
