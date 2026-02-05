@@ -289,15 +289,10 @@
             <div id="suggestion-box"></div>
         </div>
 
-        <div class="nav-actions">
-            <div id="auth-section">
-                <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=code&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app%2F&scope=identify+guilds" class="discord-login-btn">
-                    <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
-                    Login
-                </a>
-            </div>
-            <button class="btn-join" onclick="join()">Connect Voice</button>
-        </div>
+        <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app%2F&scope=identify+guilds" class="discord-login-btn">
+            <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
+            Login
+        </a>
     </nav>
 
     <div class="main-container">
@@ -427,14 +422,19 @@
         }
 
         async function join() {
-            // ส่ง userId ไปด้วยเพื่อให้บอทวิ่งหาเราถูกคน
-            const url = window.loggedUserId ? `/join?userId=${window.loggedUserId}` : "/join";
+            // บอทจะไม่จำ แต่จะใช้ ID ของคุณไปหาห้องที่คุณอยู่ ณ ตอนนี้
+            if (!window.loggedUserId) {
+                alert("กรุณา Login ก่อนเพื่อให้บอทวิ่งไปหาคุณถูกห้องครับ");
+                return;
+            }
+
+            const url = `/join?userId=${window.loggedUserId}`;
             const res = await fetch(url, { method: "POST" });
+
             if (res.ok) {
-                alert("บอทกำลังเข้าไปหาคุณ!");
-                updateStatus();
+                alert("บอทกำลังวิ่งไปหาคุณที่ห้อง Voice!");
             } else {
-                alert("กรุณาเข้าห้อง Voice ก่อนนะครับ");
+                alert("หาห้องของคุณไม่เจอ คุณอยู่ในห้อง Voice หรือยังครับ?");
             }
         }
 

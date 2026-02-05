@@ -34,11 +34,27 @@ public class MusicService
         }
     }
 
+    // ✅ เพิ่มฟังก์ชันใหม่: ให้บอทวิ่งไปหา userId ที่ระบุ
+    public async Task<bool> JoinByUserIdAsync(ulong userId)
+    {
+        if (_discordClient == null) return false;
+
+        foreach (var guild in _discordClient.Guilds)
+        {
+            var user = guild.GetUser(userId);
+            if (user?.VoiceChannel != null)
+            {
+                await JoinAsync(user.VoiceChannel);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public async Task JoinLastAsync()
     {
         if (_lastChannel == null && _discordClient != null)
         {
-            // ✅ จุดที่ 1: ต้องมั่นใจว่าเป็น SocketGuild
             var firstGuild = _discordClient.Guilds.FirstOrDefault();
             if (firstGuild != null)
             {
@@ -75,7 +91,6 @@ public class MusicService
 
         try
         {
-            // ✅ จุดที่ 2: ใช้ SocketGuild เพื่อให้เข้าถึง .VoiceChannels ได้
             SocketGuild? guild = null;
 
             if (guildId.HasValue)
