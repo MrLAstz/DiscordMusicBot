@@ -157,17 +157,20 @@
         }
 
         .user-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%; /* รูปวงกลม */
-            object-fit: cover;
-            background: #333;
-        }
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: #10b981;
+            width: 100%;
+            height: 100%;
             border-radius: 50%;
+            object-fit: cover;
+        }
+        /* จุดสถานะมุมขวาล่าง */
+        .status-dot {
+            position: absolute;
+            bottom: -1px;
+            right: -1px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid #1e1e1e; /* สีเดียวกับพื้นหลังเพื่อให้ดูเป็นรอยตัด */
         }
         .user-info {
             display: flex;
@@ -349,21 +352,24 @@
                 if (!res.ok) return;
                 const data = await res.json();
 
-                // แสดงชื่อห้องด้านบน
                 document.getElementById("guild-name").innerText = data.guild || "Voice Channel";
-
                 const userList = document.getElementById("user-list");
 
                 if (data.users && data.users.length > 0) {
                     userList.innerHTML = data.users.map(u => {
-                        // ดึงข้อมูลชื่อและรูป (ถ้า backend ส่งเป็น object)
-                        const name = typeof u === 'string' ? u : u.name;
-                        const avatar = u.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
+                        // กำหนดสีตามสถานะจาก Discord
+                        let color = "#747f8d"; // offline (เทา)
+                        if (u.status === "online") color = "#3ba55c"; // เขียว
+                        if (u.status === "idle") color = "#faa61a";   // ส้ม
+                        if (u.status === "dnd") color = "#ed4245";    // แดง
 
                         return `
-                    <div class="user-item">
-                        <img src="${avatar}" class="user-avatar">
-                        <span class="user-name">${name}</span>
+                    <div class="user-item" style="display:flex; align-items:center; gap:12px; padding:6px 0;">
+                        <div class="avatar-wrapper">
+                            <img src="${u.avatar}" class="user-avatar">
+                            <div class="status-dot" style="background-color: ${color}"></div>
+                        </div>
+                        <span class="user-name" style="color:#dbdee1; font-weight:500;">${u.name}</span>
                     </div>
                 `;
                     }).join('');

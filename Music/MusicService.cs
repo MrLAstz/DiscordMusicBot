@@ -51,23 +51,26 @@ public class MusicService
     }
 
     // ✅ แก้ไขส่วนนี้เพื่อให้ดึงรายชื่อได้ถูกต้อง
-    public List<string> GetUsersInVoice()
+    public object GetUsersInVoice() // เปลี่ยน return type เป็น object
     {
-        if (_lastChannel == null) return new List<string>();
+        if (_lastChannel == null) return new List<object>();
 
         try
         {
-            // ดึงรายชื่อ User ทั้งหมดใน Channel (ต้องรันแบบ Sync ในที่นี้ใช้ .Result)
+            // ดึง User เฉพาะคนที่อยู่ใน Voice Channel ที่บอทอยู่ ณ ตอนนี้
             var users = _lastChannel.GetUsersAsync().FlattenAsync().Result;
 
-            return users
-                .Select(u => u.GlobalName ?? u.Username) // เลือกชื่อเล่น (GlobalName) ถ้าไม่มีใช้ Username
-                .Where(name => !string.IsNullOrEmpty(name)) // กรองชื่อที่ว่างออก
-                .ToList();
+            return users.Select(u => new
+            {
+                name = u.GlobalName ?? u.Username,
+                avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
+                // ดึงสถานะ: online, idle, dnd หรือ offline
+                status = (u is SocketGuildUser sUser) ? sUser.Status.ToString().ToLower() : "offline"
+            }).ToList();
         }
         catch
         {
-            return new List<string> { "ไม่สามารถดึงข้อมูลได้" };
+            return new List<object>();
         }
     }
 }
