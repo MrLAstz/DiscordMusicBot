@@ -274,7 +274,7 @@
         </div>
 
         <div id="auth-section">
-            <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=code&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app&scope=identify+guilds" class="discord-login-btn">
+            <a href="https://discord.com/oauth2/authorize?client_id=1468709507608875081&response_type=token&redirect_uri=https%3A%2F%2Fdiscordmusicbot-production.up.railway.app&scope=identify+guilds" class="discord-login-btn">
                 <img src="https://cdn.prod.website-files.com/6257ade0c7a69434c9faf05c/636e0a6ca814282eca7172c6_icon_clyde_white_RGB.svg" width="20">
                 Login
             </a>
@@ -306,52 +306,65 @@
 
         // --- 1. ระบบ Discord Login ---
         async function handleDiscordLogin() {
+            // 1. ลองดึง token จาก URL (กรณีเพิ่งกด Login กลับมา)
             const fragment = new URLSearchParams(window.location.hash.slice(1));
-            const accessToken = fragment.get('access_token');
+            let accessToken = fragment.get('access_token');
+
+            // 2. ถ้าใน URL ไม่มี ให้ดูในเครื่องว่าเคย Login ไว้ไหม
+            if (!accessToken) {
+                accessToken = localStorage.getItem('discord_access_token');
+            }
 
             if (accessToken) {
                 try {
                     const response = await fetch('https://discord.com/api/users/@me', {
                         headers: { Authorization: `Bearer ${accessToken}` }
                     });
-                    const user = await response.json();
 
+                    if (!response.ok) throw new Error("Token expired");
+
+                    const user = await response.json();
                     window.loggedUserId = user.id;
 
-                    // เปลี่ยนปุ่ม Login เป็นโปรไฟล์
+                    // เก็บลงเครื่องไว้ใช้รอบหน้า
+                    localStorage.setItem('discord_access_token', accessToken);
+
+                    // แสดงผลโปรไฟล์
                     document.getElementById('auth-section').innerHTML = `
-                            <div class="user-menu-container" style="position: relative;">
-                                <div class="user-pill" onclick="toggleLogoutMenu()">
-                                    <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
-                                         class="nav-avatar"
-                                         onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                    <span style="color: white;">${user.global_name || user.username}</span>
-                                    <i style="color: #ccc; font-size: 10px;">▼</i>
-                                </div>
-                                <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; overflow: hidden; z-index: 100;">
-                                    <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left; font-size: 14px;">
-                                         🚪 Logout
-                                    </button>
-                                </div>
-                            </div>
-                        `;
+                <div class="user-menu-container" style="position: relative;">
+                    <div class="user-pill" onclick="toggleLogoutMenu()">
+                        <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
+                             class="nav-avatar"
+                             onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                        <span style="color: white;">${user.global_name || user.username}</span>
+                    </div>
+                    <div id="logout-menu" style="display: none; position: absolute; top: 45px; right: 0; background: #18191c; border: 1px solid #333; border-radius: 8px; width: 120px; z-index: 100;">
+                        <button onclick="logout()" style="width: 100%; padding: 12px; background: none; border: none; color: #ed4245; cursor: pointer; text-align: left;">🚪 Logout</button>
+                    </div>
+                </div>
+            `;
 
                     updateStatus();
-                    setInterval(updateStatus, 3000);
+                    setInterval(updateStatus, 5000); // เช็คทุก 5 วินาทีพอ จะได้ไม่เปลือง Bandwidth
                     window.history.replaceState({}, document.title, "/");
 
-                } catch (e) { console.error("Login Error:", e); }
+                } catch (e) {
+                    console.error("Login Error:", e);
+                    localStorage.removeItem('discord_access_token'); // ลบ token ที่เสียทิ้ง
+                }
             }
+        }
+
+        // แก้ฟังก์ชัน Logout ให้ล้างค่าในเครื่องด้วย
+        function logout() {
+            localStorage.removeItem('discord_access_token');
+            window.loggedUserId = null;
+            location.reload(); // รีโหลดหน้าเพื่อกลับไปสถานะ Login
         }
 
         function toggleLogoutMenu() {
             const menu = document.getElementById("logout-menu");
             menu.style.display = menu.style.display === "none" ? "block" : "none";
-        }
-
-        function logout() {
-            window.loggedUserId = null;
-            location.href = "/";
         }
 
         // --- 2. ระบบค้นหา (YouTube Suggestion) ---
