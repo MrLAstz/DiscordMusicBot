@@ -406,8 +406,21 @@
         }
 
         async function play(query) {
-            await fetch(`/play?url=${encodeURIComponent(query)}`, { method: "POST" });
-            alert("สั่งเล่นเพลงแล้ว: " + query);
+            try {
+                // ใช้ URLSearchParams เพื่อให้มั่นใจว่าอักขระพิเศษในชื่อเพลงจะไม่ทำให้ URL พัง
+                const params = new URLSearchParams({ url: query });
+                const res = await fetch(`/play?${params.toString()}`, {
+                    method: "POST"
+                });
+
+                if (res.ok) {
+                    alert("กำลังเริ่มเล่นเพลง: " + query);
+                } else {
+                    alert("เกิดข้อผิดพลาดในการสั่งเล่นเพลง");
+                }
+            } catch (e) {
+                console.error("Play error:", e);
+            }
         }
 
         setInterval(updateStatus, 3000);

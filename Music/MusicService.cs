@@ -1,23 +1,21 @@
 ﻿using Discord;
 using Discord.Audio;
 using Discord.WebSocket;
-using System.Collections.Concurrent; // สำหรับจัดการ Dictionary ในหลาย Thread
+using System.Collections.Concurrent;
 using System.Linq;
 
 namespace DiscordMusicBot.Music;
 
 public class MusicService
 {
-    // 1. เปลี่ยนมาใช้ Dictionary เพื่อเก็บ ID ห้อง แยกตาม ID ของ Server (Guild)
     private readonly ConcurrentDictionary<ulong, ulong> _serverRooms = new();
-    
-    // 2. เก็บ Audio Client แยกตาม Server เพื่อให้เปิดเพลงพร้อมกันหลายที่ได้
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
-
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
 
-    // ตัวแปรนี้จะกลายเป็น "ชื่อล่าสุด" ที่มีการเรียกใช้
+    // ✅ เพิ่มตัวแปรนี้เพื่อจำห้องล่าสุดที่บอทเข้าไป
+    private IVoiceChannel? _lastChannel;
+
     public string CurrentGuildName { get; set; } = "ไม่ได้เชื่อมต่อ";
 
     public void SetDiscordClient(DiscordSocketClient client)
@@ -25,11 +23,13 @@ public class MusicService
         _discordClient = client;
     }
 
-    public async Task JoinLastAsync(IVoiceChannel channel)
+    // ✅ แก้ไข: เพิ่ม Overload ให้ JoinAsync รับห้องมาเก็บไว้ (ใช้ตอน Command ใน Discord)
+    public async Task JoinAsync(IVoiceChannel channel)
     {
-        // บันทึกว่า Server นี้ (Guild.Id) กำลังใช้ห้องไหน (channel.Id)
+        _lastChannel = channel; // จำห้องนี้ไว้
         _serverRooms[channel.Guild.Id] = channel.Id;
-        
+        CurrentGuildName = channel.Guild.Name;
+
         if (!_audioClients.ContainsKey(channel.Guild.Id))
         {
             var audioClient = await channel.ConnectAsync();
@@ -37,12 +37,22 @@ public class MusicService
         }
     }
 
-    public async Task PlayLastAsync(IVoiceChannel channel, string url)
+    // ✅ แก้ไข: ทำให้ JoinLastAsync ไม่มี parameter (เพื่อให้ WebServer เรียกใช้ได้)
+    public async Task JoinLastAsync()
     {
-        await JoinAsync(channel);
-        
+        if (_lastChannel != null)
+        {
+            await JoinAsync(_lastChannel);
+        }
+    }
+
+    // ✅ แก้ไข: ทำให้ PlayLastAsync รับแค่ URL (เพื่อให้ WebServer เรียกใช้ได้)
+    public async Task PlayLastAsync(string url)
+    {
+        if (_lastChannel == null) return;
+
         var stream = await _youtube.GetAudioStreamAsync(url);
-        if (_audioClients.TryGetValue(channel.Guild.Id, out var audioClient))
+        if (_audioClients.TryGetValue(_lastChannel.Guild.Id, out var audioClient))
         {
             using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
             await stream.CopyToAsync(discord);
@@ -50,13 +60,12 @@ public class MusicService
         }
     }
 
-    // ✅ แก้ไข: ให้รับ guildId เพื่อดึงข้อมูลของ Server นั้นๆ
-    public object GetStatus(ulong? guildId = null)
+    // ✅ แก้ไข: เปลี่ยนชื่อเป็น GetUsersInVoice (เพื่อให้ตรงกับที่ WebServer เรียก)
+    public object GetUsersInVoice(ulong? guildId = null)
     {
-        if (_discordClient == null) 
+        if (_discordClient == null)
             return new { guild = "บอทยังไม่พร้อม", users = new List<object>() };
 
-        // ถ้าหน้าเว็บไม่ได้ระบุ guildId มา (เช่น หน้าแรก) ให้พยายามหยิบตัวแรกที่มี
         var targetGuildId = guildId ?? _serverRooms.Keys.FirstOrDefault();
 
         if (targetGuildId == 0 || !_serverRooms.TryGetValue(targetGuildId, out var channelId))
@@ -67,6 +76,8 @@ public class MusicService
             var voiceChannel = _discordClient.GetChannel(channelId) as SocketVoiceChannel;
             if (voiceChannel == null)
                 return new { guild = "ไม่พบห้อง", users = new List<object>() };
+
+            this.CurrentGuildName = voiceChannel.Guild.Name;
 
             return new
             {

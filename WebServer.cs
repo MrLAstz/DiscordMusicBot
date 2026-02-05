@@ -34,11 +34,14 @@ public static class WebServer
         });
 
         // ✅ แก้ไข: เปลี่ยนชื่อเป็น GetUsersInVoice ตามที่คุณมีใน MusicService.cs
-        app.MapGet("/status", () =>
+        app.MapPost("/play", async (HttpContext context) =>
         {
-            // เรียกใช้ GetUsersInVoice() ที่เราเพิ่งแก้ให้คืนค่า { guild, users }
-            var statusData = music.GetUsersInVoice();
-            return Results.Ok(statusData);
+            // ดึง url จาก query string หรือ body
+            string url = context.Request.Query["url"];
+            if (string.IsNullOrEmpty(url)) return Results.BadRequest("URL is required");
+
+            await music.PlayLastAsync(url);
+            return Results.Ok(new { message = "Playing" });
         });
 
         app.Run();
