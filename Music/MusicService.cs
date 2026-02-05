@@ -111,27 +111,39 @@ public class MusicService
     {
         if (_discordClient == null) return new { guild = "บอทไม่พร้อม", users = new List<object>() };
 
-        // ค้นหาจากทุุก Guild ที่บอทและผู้ใช้อยู่ร่วมกัน
-        foreach (var guild in _discordClient.Guilds)
-        {
-            var user = guild.GetUser(userId); // ดึงข้อมูล user ใน guild นี้
+        // 1. หาตำแหน่งของคุณ (ผู้ล็อกอิน) ว่าตอนนี้อยู่เซิร์ฟเวอร์ไหน และห้องไหน
+        var user = _discordClient.GetUser(userId) as SocketGuildUser;
 
-            if (user?.VoiceChannel != null)
-            {
-                var channel = user.VoiceChannel;
-                return new
-                {
-                    guild = guild.Name,
-                    users = channel.Users.Select(u => new {
-                        name = u.GlobalName ?? u.Username,
-                        avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                        status = u.Status.ToString().ToLower()
-                    }).ToList()
-                };
-            }
+        // หากไม่พบด้วยวิธีแรก ให้วนหาจาก Guilds ที่บอทอยู่
+        if (user == null)
+        {
+            user = _discordClient.Guilds
+                .Select(g => g.GetUser(userId))
+                .FirstOrDefault(u => u != null);
         }
 
-        // หากหาไม่เจอในทุก Guild ที่บอทอยู่
+        // 2. เช็คว่าคุณอยู่ในห้องเสียง (Voice Channel) หรือไม่
+        if (user?.VoiceChannel != null)
+        {
+            var myChannel = user.VoiceChannel; // นี่คือห้องที่คุณอยู่จริงๆ เช่น "Lobby"
+
+            // 3. ดึงเฉพาะสมาชิกที่อยู่ในห้อง "myChannel" เท่านั้น
+            // ห้ามใช้ guild.Users เพราะจะทำให้เห็นคนทั้งเซิร์ฟเวอร์
+            var usersInRoom = myChannel.Users.Select(u => new
+            {
+                name = u.GlobalName ?? u.Username,
+                avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
+                status = u.Status.ToString().ToLower()
+            }).ToList();
+
+            return new
+            {
+                guild = $"{myChannel.Guild.Name} ({myChannel.Name})",
+                users = usersInRoom
+            };
+        }
+
+        // กรณีไม่ได้เข้าห้องเสียง
         return new { guild = "คุณไม่ได้อยู่ในห้องเสียง", users = new List<object>() };
     }
 }
