@@ -45,7 +45,6 @@
             cursor: pointer;
         }
 
-        /* Search Box with Auto-complete */
         .search-area {
             flex: 0 1 500px;
             position: relative;
@@ -89,7 +88,7 @@
             overflow: hidden;
         }
 
-        /* Sidebar (Status & Members) */
+        /* Sidebar */
         .sidebar {
             width: 280px;
             background: var(--bg-dark);
@@ -140,7 +139,7 @@
             border-radius: 50%;
         }
 
-        /* Content Area */
+        /* Player Area */
         .content {
             flex: 1;
             padding: 40px;
@@ -152,29 +151,30 @@
 
         .player-card {
             background: var(--card-bg);
-            padding: 25px;
+            padding: 30px;
             border-radius: 16px;
             width: 100%;
-            max-width: 450px;
+            max-width: 480px;
             text-align: center;
             box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            margin-top: 50px;
         }
 
         .btn-play {
             background: white;
             color: black;
             border: none;
-            padding: 12px 40px;
-            border-radius: 25px;
+            padding: 15px 40px;
+            border-radius: 30px;
             cursor: pointer;
             font-weight: bold;
             width: 100%;
-            font-size: 16px;
+            font-size: 18px;
             transition: 0.2s;
         }
 
             .btn-play:hover {
-                transform: scale(1.02);
+                transform: scale(1.03);
                 background: #eee;
             }
 
@@ -194,7 +194,7 @@
     <nav>
         <div class="logo">🔴 <span>YT Music Bot</span></div>
         <div class="search-area">
-            <input id="search" placeholder="ค้นหาเพลง..." list="suggestions" oninput="getSuggestions()">
+            <input id="search" placeholder="ค้นหาเพลง..." list="suggestions" oninput="getSuggestions()" onkeypress="if(event.key==='Enter') search()">
             <datalist id="suggestions"></datalist>
             <button class="search-btn" onclick="search()">🔍</button>
         </div>
@@ -217,8 +217,8 @@
         </div>
 
         <div class="content">
-            <div id="player-display">
-                <h2 style="color: #444; margin-top: 100px;">พิมพ์ชื่อเพลงด้านบนเพื่อเริ่มเล่น</h2>
+            <div id="player-display" style="width: 100%; display: flex; justify-content: center;">
+                <h2 style="color: #444; margin-top: 100px; text-align: center;">พิมพ์ชื่อเพลงด้านบนเพื่อเริ่มเล่น</h2>
             </div>
         </div>
     </div>
@@ -251,40 +251,21 @@
             });
         }
 
-        // 2. Search & UI Update
+        // 2. Search & UI Update (ฟังก์ชันเดียวจบ ปรับขนาดแล้ว)
         function search() {
             const q = document.getElementById("search").value;
             if (!q) return;
 
-            // เปลี่ยนการแสดงผลเพื่อเลี่ยงปัญหา YouTube iframe unavailable
             document.getElementById("player-display").innerHTML = `
-                <div class="player-card">
-                    <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 50px; border: 1px dashed #444;">
-                        🎵
+                    <div class="player-card">
+                        <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; font-size: 60px; border: 1px dashed #444;">
+                            🎵
+                        </div>
+                        <h2 style="margin: 0 0 10px 0; color: white; font-size: 26px;">${q}</h2>
+                        <p style="color: #aaa; margin-bottom: 30px; font-size: 16px;">พร้อมสำหรับการเล่นบน Discord</p>
+                        <button class="btn-play" onclick="play('${q.replace(/'/g, "\\'")}')">▶️ เริ่มเล่นเพลงนี้</button>
                     </div>
-                    <h2 style="margin: 0 0 10px 0; color: white;">${q}</h2>
-                    <p style="color: #aaa; margin-bottom: 25px;">พร้อมสำหรับการเล่นบน Discord</p>
-                    <button class="btn-play" onclick="play('${q}')">▶️ เริ่มเล่นเพลงนี้</button>
-                </div>
-            `;
-        }
-
-        // 2. Search & UI Update (ปรับขนาดและรูปแบบการแสดงผล)
-        function search() {
-            const q = document.getElementById("search").value;
-            if (!q) return;
-
-            // แก้ไขตรงนี้: เปลี่ยนจาก iframe เป็นการแสดงผลแบบ Card แทน เพื่อเลี่ยงวิดีโอเสีย
-            document.getElementById("player-display").innerHTML = `
-                <div class="player-card" style="margin-top: 40px;">
-                    <div style="background: #222; height: 180px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 60px; border: 1px dashed #444;">
-                        🎵
-                    </div>
-                    <h2 style="margin: 0 0 10px 0; color: white; font-size: 24px;">${q}</h2>
-                    <p style="color: #aaa; margin-bottom: 25px;">พร้อมสำหรับการเล่นบน Discord แล้ว</p>
-                    <button class="btn-play" onclick="play('${q}')" style="font-size: 18px; padding: 15px;">▶️ เริ่มเล่นเพลงนี้ในห้อง Voice</button>
-                </div>
-            `;
+                `;
         }
 
         // 3. API Calls
@@ -320,7 +301,6 @@
             alert("สั่งเล่นเพลงแล้ว: " + query);
         }
 
-        // Run status update every 3 seconds
         setInterval(updateStatus, 3000);
         updateStatus();
     </script>
