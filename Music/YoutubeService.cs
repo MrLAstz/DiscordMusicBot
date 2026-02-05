@@ -16,20 +16,27 @@ public class YoutubeService
         // 1. ตรวจสอบว่าสิ่งที่ส่งมาเป็น URL หรือ คำค้นหา
         if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
         {
-            // ค้นหาและเอาวิดีโอแรกออกมาโดยใช้ await foreach (วิธีมาตรฐานของ IAsyncEnumerable)
+            // ลบ await หน้า GetVideosAsync ออกให้ขาด!
             var searchResults = _youtube.Search.GetVideosAsync(input);
 
-            // วนลูปเอาแค่อันแรกแล้ว break ทันที
-            await foreach (var video in searchResults)
+            // ใช้ท่าเลี่ยง IAsyncEnumerable โดยตรง
+            IAsyncEnumerator<VideoSearchResult> enumerator = searchResults.GetAsyncEnumerator();
+            try
             {
-                videoUrl = video.Url;
-                break;
+                if (await enumerator.MoveNextAsync()) // ตรงนี้คือจุดเดียวที่ใช้ await
+                {
+                    videoUrl = enumerator.Current.Url;
+                }
+                else
+                {
+                    throw new Exception("❌ ไม่พบวิดีโอที่ค้นหา");
+                }
             }
-
-            if (string.IsNullOrEmpty(videoUrl) || videoUrl == input)
-                throw new Exception("❌ ไม่พบวิดีโอที่ค้นหา");
+            finally
+            {
+                await enumerator.DisposeAsync();
+            }
         }
-
         // 2. ดึง Stream Manifest
         var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
 
