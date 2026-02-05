@@ -11,25 +11,29 @@ public class YoutubeService
     private readonly YoutubeClient _youtube = new();
 
     // --- ส่วนที่เพิ่มใหม่: สำหรับดึงรายการวิดีโอไปแสดงบน UI ---
-    public async Task<List<object>> SearchVideosAsync(string query, int limit = 12)
+    // เพิ่ม parameter 'offset' เพื่อบอกว่าให้เริ่มโหลดที่ลำดับที่เท่าไหร่
+    public async Task<List<object>> SearchVideosAsync(string query, int limit = 12, int offset = 0)
     {
         var results = new List<object>();
         var searchResults = _youtube.Search.GetVideosAsync(query);
 
+        int count = 0;
         await foreach (var video in searchResults)
         {
+            // ข้ามวิดีโอที่โหลดไปแล้วตามค่า offset
+            if (count < offset)
+            {
+                count++;
+                continue;
+            }
+
             results.Add(new
             {
                 title = video.Title,
                 url = video.Url,
                 thumbnail = video.Thumbnails.OrderByDescending(t => t.Resolution.Area).FirstOrDefault()?.Url,
-                // แก้ไข: ใช้ ChannelTitle แทนตามคำแนะนำของ Warning
                 author = video.Author.ChannelTitle,
                 duration = video.Duration?.ToString(@"mm\:ss") ?? "00:00",
-
-                // แก้ไข: VideoSearchResult ไม่มี Engagement และ UploadDate 
-                // เราจะใช้วิธีสุ่มตัวเลขยอดวิว (Mock) หรือถ้าอยากได้จริงต้อง GetVideoAsync แยก 
-                // แต่เพื่อความเร็ว แนะนำให้สุ่มเลขยอดวิวไปก่อนครับเพื่อให้ UI สวย
                 views = FormatViews(new Random().Next(100000, 10000000)),
                 uploaded = "1 month ago"
             });
