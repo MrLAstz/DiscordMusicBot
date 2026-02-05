@@ -89,6 +89,22 @@ public class MusicService
         }
     }
 
+    // เพิ่ม Method นี้เข้าไปเพื่อให้ WebServer.cs เรียกใช้ได้เวลาไม่มี userId
+    public async Task PlayLastAsync(string url)
+    {
+        // ถ้าไม่รู้ว่าห้องไหน ให้พยายามหาห้องที่มีคนก่อน
+        if (_lastChannel == null) await JoinLastAsync();
+        if (_lastChannel == null) return;
+
+        var stream = await _youtube.GetAudioStreamAsync(url);
+        if (_audioClients.TryGetValue(_lastChannel.Guild.Id, out var audioClient))
+        {
+            using var discord = audioClient.CreatePCMStream(AudioApplication.Music);
+            await stream.CopyToAsync(discord);
+            await discord.FlushAsync();
+        }
+    }
+
     public object GetUsersInVoice(ulong? guildId = null)
     {
         if (_discordClient == null || _discordClient.Guilds.Count == 0)

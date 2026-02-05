@@ -421,27 +421,27 @@
             } catch (e) { console.error("Update Status Error:", e); }
         }
 
-        async function join() {
-            // บอทจะไม่จำ แต่จะใช้ ID ของคุณไปหาห้องที่คุณอยู่ ณ ตอนนี้
+        // ในส่วนกดเล่นเพลง
+        async function play(query) {
             if (!window.loggedUserId) {
-                alert("กรุณา Login ก่อนเพื่อให้บอทวิ่งไปหาคุณถูกห้องครับ");
+                alert("กรุณา Login ก่อนครับ");
                 return;
             }
-
-            const url = `/join?userId=${window.loggedUserId}`;
-            const res = await fetch(url, { method: "POST" });
-
-            if (res.ok) {
-                alert("บอทกำลังวิ่งไปหาคุณที่ห้อง Voice!");
-            } else {
-                alert("หาห้องของคุณไม่เจอ คุณอยู่ในห้อง Voice หรือยังครับ?");
-            }
+            // ต้องส่ง userId ไปใน Query String ด้วยบอทถึงจะทำงานแบบ Stateless ได้
+            const params = new URLSearchParams({
+                url: query,
+                userId: window.loggedUserId
+            });
+            await fetch(`/play?${params.toString()}`, { method: "POST" });
         }
 
-        async function play(query) {
-            const params = new URLSearchParams({ url: query });
-            const res = await fetch(`/play?${params.toString()}`, { method: "POST" });
-            if (res.ok) alert("เริ่มเล่นเพลง: " + query);
+        // ในส่วนกด Join
+        async function join() {
+            if (!window.loggedUserId) {
+                alert("กรุณา Login ก่อนครับ");
+                return;
+            }
+            await fetch(`/join?userId=${window.loggedUserId}`, { method: "POST" });
         }
 
         // เริ่มต้นระบบ
