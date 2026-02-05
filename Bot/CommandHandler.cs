@@ -37,7 +37,7 @@ public class CommandHandler
                 }
 
                 await _music.JoinAndStayAsync(channel);
-                await msg.Channel.SendMessageAsync("✅ เข้า voice และอยู่ค้างแล้ว");
+                await msg.Channel.SendMessageAsync("✅ บอท voice ห้องว่าง");
             }
 
             // !play <url>
