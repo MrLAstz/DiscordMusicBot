@@ -364,40 +364,32 @@
         async function updateStatus() {
             try {
                 const res = await fetch("/status");
-                if (!res.ok) return;
                 const data = await res.json();
 
-                // แสดงชื่อ Server/Channel
-                document.getElementById("guild-name").innerText = data.guild || "Voice Channel";
                 const userList = document.getElementById("user-list");
 
                 if (data.users && data.users.length > 0) {
                     userList.innerHTML = data.users.map(u => {
-                        // เลือกสีจุดตามสถานะ
-                        let color = "#747f8d"; // offline (เทา)
-                        if (u.status === "online") color = "#3ba55c"; // เขียว
-                        if (u.status === "idle") color = "#faa61a";   // ส้ม
-                        if (u.status === "dnd") color = "#ed4245";    // แดง
-
-                        // ใช้รูป Default หากไม่มีรูปโปรไฟล์
-                        const avatarUrl = u.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
+                        // เลือกสีจุดสถานะ
+                        let color = "#747f8d"; // offline
+                        if (u.status === "online") color = "#3ba55c";
+                        if (u.status === "idle") color = "#faa61a";
+                        if (u.status === "dnd") color = "#ed4245";
 
                         return `
                     <div class="user-item">
                         <div class="avatar-wrapper">
-                            <img src="${avatarUrl}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                            <img src="${u.avatar}" class="user-avatar">
                             <div class="status-dot" style="background-color: ${color}"></div>
                         </div>
-                        <span class="user-name">${u.name}</span>
+                        <span class="user-name" style="color:#dbdee1;">${u.name}</span>
                     </div>
                 `;
                     }).join('');
                 } else {
-                    userList.innerHTML = `<div style="color: #666; padding: 10px; font-size: 0.9em;">ไม่มีใครอยู่ในห้อง</div>`;
+                    userList.innerHTML = `<div style="color:#666; padding:10px;">ห้องว่างเปล่า</div>`;
                 }
-            } catch (e) {
-                console.error("Update Status Error:", e);
-            }
+            } catch (e) { console.log(e); }
         }
 
         async function join() {

@@ -10,6 +10,7 @@ public class MusicService
 {
     private IVoiceChannel? _lastChannel;
     private IAudioClient? _client;
+    private ulong? _currentChannelId;
     private readonly YoutubeService _youtube = new();
 
     public string CurrentGuildName { get; set; } = "ไม่ได้เชื่อมต่อ";
@@ -17,6 +18,7 @@ public class MusicService
     public async Task JoinAsync(IVoiceChannel channel)
     {
         _lastChannel = channel;
+        _currentChannelId = channel.Id; // จำ ID ห้องไว้
         CurrentGuildName = channel.Guild.Name;
         _client ??= await channel.ConnectAsync();
     }
@@ -51,25 +53,31 @@ public class MusicService
     }
 
     // ✅ แก้ไขส่วนนี้เพื่อให้ดึงรายชื่อได้ถูกต้อง
-    public object GetUsersInVoice() // เปลี่ยน return type เป็น object
+    public object GetUsersInVoice()
     {
-        if (_lastChannel == null) return new List<object>();
+        if (_lastChannel == null || _currentChannelId == null) return new List<object>();
 
         try
         {
-            // ดึง User เฉพาะคนที่อยู่ใน Voice Channel ที่บอทอยู่ ณ ตอนนี้
-            var users = _lastChannel.GetUsersAsync().FlattenAsync().Result;
+            // ดึง Instance ของห้องล่าสุดจาก Guild อีกครั้งเพื่อให้ได้ข้อมูลสมาชิกที่ Update (Real-time)
+            var guild = _lastChannel.Guild as SocketGuild;
+            var voiceChannel = guild?.GetVoiceChannel(_currentChannelId.Value);
+
+            if (voiceChannel == null) return new List<object>();
+
+            // ดึงเฉพาะสมาชิกที่ "เชื่อมต่ออยู่ในวอยซ์" ณ วินาทีนี้
+            var users = voiceChannel.Users;
 
             return users.Select(u => new
             {
                 name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                // ดึงสถานะ: online, idle, dnd หรือ offline
-                status = (u is SocketGuildUser sUser) ? sUser.Status.ToString().ToLower() : "offline"
+                status = u.Status.ToString().ToLower() // online, idle, dnd, offline
             }).ToList();
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"Error fetching users: {ex.Message}");
             return new List<object>();
         }
     }
