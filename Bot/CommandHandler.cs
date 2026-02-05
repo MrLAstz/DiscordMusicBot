@@ -20,19 +20,50 @@ public class CommandHandler
     {
         if (msg.Author.IsBot) return;
 
-        if (msg.Content.StartsWith("!play "))
+        try
         {
-            var url = msg.Content.Replace("!play ", "");
-            var user = msg.Author as SocketGuildUser;
-            var channel = user?.VoiceChannel;
-
-            if (channel == null)
-            {
-                await msg.Channel.SendMessageAsync("❌ เข้าห้องเสียงก่อน");
+            if (msg.Author is not SocketGuildUser user)
                 return;
+
+            var channel = user.VoiceChannel;
+
+            // !join
+            if (msg.Content == "!join")
+            {
+                if (channel == null)
+                {
+                    await msg.Channel.SendMessageAsync("❌ เข้าห้องเสียงก่อน");
+                    return;
+                }
+
+                await _music.JoinAsync(channel);
+                await msg.Channel.SendMessageAsync("✅ เข้า voice แล้ว");
             }
 
-            await _music.PlayAsync(channel, url);
+            // !play <url>
+            else if (msg.Content.StartsWith("!play "))
+            {
+                if (channel == null)
+                {
+                    await msg.Channel.SendMessageAsync("❌ เข้าห้องเสียงก่อน");
+                    return;
+                }
+
+                var url = msg.Content.Replace("!play ", "").Trim();
+                await _music.PlayAsync(channel, url);
+            }
+
+            // !leave
+            else if (msg.Content == "!leave")
+            {
+                await _music.LeaveAsync();
+                await msg.Channel.SendMessageAsync("👋 ออกจาก voice แล้ว");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"🔥 Command error: {ex}");
+            await msg.Channel.SendMessageAsync("⚠️ เกิดข้อผิดพลาด แต่บอทยังไม่ล้ม");
         }
     }
 }
