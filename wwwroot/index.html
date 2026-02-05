@@ -151,16 +151,28 @@
         .user-item {
             display: flex;
             align-items: center;
-            gap: 12px; /* ระยะห่างระหว่างรูปกับชื่อ */
+            gap: 12px;
             padding: 6px 10px;
-            border: none; /* เอาเส้นคั่นออกเพื่อให้เหมือนรูป 1 */
+            transition: background 0.2s;
+            border-radius: 4px;
         }
 
+        .user-item:hover {
+            background: rgba(255, 255, 255, 0.05); /* ไฮไลท์เวลาเมาส์ชี้ */
+        }
+        /* คลุมรูปโปรไฟล์และจุดสถานะ */
+        .avatar-wrapper {
+            position: relative;
+            width: 32px; /* ขนาดมาตรฐาน Discord */
+            height: 32px;
+            flex-shrink: 0; /* ป้องกันรูปถูกบีบ */
+        }
         .user-avatar {
             width: 100%;
             height: 100%;
             border-radius: 50%;
             object-fit: cover;
+            display: block;
         }
         /* จุดสถานะมุมขวาล่าง */
         .status-dot {
@@ -170,7 +182,7 @@
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            border: 2px solid #1e1e1e; /* สีเดียวกับพื้นหลังเพื่อให้ดูเป็นรอยตัด */
+            border: 2px solid #1e1e1e; /* ขอบสีเดียวกับพื้นหลัง Card เพื่อให้ดูเว้า */
         }
         .user-info {
             display: flex;
@@ -178,8 +190,11 @@
         }
         .user-name {
             font-size: 0.95em;
-            color: #dcddde; /* สีขาวเทาแบบ Discord */
+            color: #dbdee1;
             font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .user-status {
@@ -352,31 +367,37 @@
                 if (!res.ok) return;
                 const data = await res.json();
 
+                // แสดงชื่อ Server/Channel
                 document.getElementById("guild-name").innerText = data.guild || "Voice Channel";
                 const userList = document.getElementById("user-list");
 
                 if (data.users && data.users.length > 0) {
                     userList.innerHTML = data.users.map(u => {
-                        // กำหนดสีตามสถานะจาก Discord
+                        // เลือกสีจุดตามสถานะ
                         let color = "#747f8d"; // offline (เทา)
                         if (u.status === "online") color = "#3ba55c"; // เขียว
                         if (u.status === "idle") color = "#faa61a";   // ส้ม
                         if (u.status === "dnd") color = "#ed4245";    // แดง
 
+                        // ใช้รูป Default หากไม่มีรูปโปรไฟล์
+                        const avatarUrl = u.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
+
                         return `
-                    <div class="user-item" style="display:flex; align-items:center; gap:12px; padding:6px 0;">
+                    <div class="user-item">
                         <div class="avatar-wrapper">
-                            <img src="${u.avatar}" class="user-avatar">
+                            <img src="${avatarUrl}" class="user-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
                             <div class="status-dot" style="background-color: ${color}"></div>
                         </div>
-                        <span class="user-name" style="color:#dbdee1; font-weight:500;">${u.name}</span>
+                        <span class="user-name">${u.name}</span>
                     </div>
                 `;
                     }).join('');
                 } else {
-                    userList.innerHTML = `<div style="color: #666; padding: 10px;">ไม่มีใครอยู่ในห้อง</div>`;
+                    userList.innerHTML = `<div style="color: #666; padding: 10px; font-size: 0.9em;">ไม่มีใครอยู่ในห้อง</div>`;
                 }
-            } catch (e) { console.log(e); }
+            } catch (e) {
+                console.error("Update Status Error:", e);
+            }
         }
 
         async function join() {
