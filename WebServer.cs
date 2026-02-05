@@ -82,6 +82,23 @@ public static class WebServer
             return Results.BadRequest(new { message = "User ID is required" });
         });
 
+        app.MapPost("/toggle", async (string userId, MusicService musicService) => {
+            if (ulong.TryParse(userId, out ulong id))
+            {
+                await musicService.ToggleAsync(id); // ต้องมี Method นี้ใน MusicService
+                return Results.Ok();
+            }
+            return Results.BadRequest();
+        });
+
+        app.MapPost("/skip", async (string userId, MusicService musicService) => {
+            if (ulong.TryParse(userId, out ulong id))
+            {
+                await musicService.SkipAsync(id); // ต้องมี Method นี้ใน MusicService
+                return Results.Ok();
+            }
+            return Results.BadRequest();
+        });
         app.MapControllers();
         app.Run();
     }
