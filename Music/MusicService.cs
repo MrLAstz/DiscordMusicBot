@@ -55,23 +55,21 @@ public class MusicService
     // ✅ แก้ไขส่วนนี้เพื่อให้ดึงรายชื่อได้ถูกต้อง
     public object GetUsersInVoice()
     {
-        // ตรวจสอบว่าบอทเชื่อมต่ออยู่หรือไม่
-        if (_lastChannel == null || _currentChannelId == null)
-            return new List<object>();
+        if (_lastChannel == null || _currentChannelId == null) return new List<object>();
 
         try
         {
-            // เข้าถึง SocketGuild ผ่านทาง _lastChannel
+            // 1. ดึงข้อมูล Guild ใหม่จาก Socket เพื่อให้ได้ข้อมูลล่าสุด
             var guild = _lastChannel.Guild as SocketGuild;
-
-            // ดึงข้อมูลห้องวอยซ์ล่าสุดจาก Cache ของ SocketGuild เพื่อให้ได้ User ที่ Update จริงๆ
+            // 2. ดึง Channel โดยระบุ ID
             var voiceChannel = guild?.GetVoiceChannel(_currentChannelId.Value);
 
-            if (voiceChannel == null)
-                return new List<object>();
+            if (voiceChannel == null) return new List<object>();
 
-            // voiceChannel.Users จะคืนค่าเฉพาะคนที่ "เชื่อมต่อ" อยู่ในห้องนั้น ณ วินาทีนี้เท่านั้น
-            return voiceChannel.Users.Select(u => new
+            // 3. ใช้ .Users จาก SocketVoiceChannel (ซึ่งจะถูก Update โดย Gateway Intents)
+            var currentUsers = voiceChannel.Users;
+
+            return currentUsers.Select(u => new
             {
                 name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
