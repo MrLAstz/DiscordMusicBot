@@ -57,7 +57,8 @@
 
         async function play(query) {
             const url = "https://www.youtube.com/results?search_query=" + encodeURIComponent(query);
-            await fetch(`/play?url=${encodeURIComponent(url)}`, { method: "POST" });
+            // ส่งแค่คำค้นหาไป เดี๋ยว C# จะไปจัดการค้นหาคลิปแรกเอง
+            await fetch(`/play?url=${encodeURIComponent(query)}`, { method: "POST" });
             alert("สั่งเล่นเพลงแล้ว");
         }
     </script>

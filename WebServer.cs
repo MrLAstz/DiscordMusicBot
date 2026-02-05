@@ -1,36 +1,36 @@
-﻿using DiscordMusicBot.Music;
+﻿namespace DiscordMusicBot.Web;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-
-namespace DiscordMusicBot.Web;
+using DiscordMusicBot.Music;
 
 public static class WebServer
 {
-    public static void Start(string[] args, MusicService music)
+    public static void Start(string[] args, MusicService music, string port)
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        builder.Services.AddSingleton(music);
+        // บังคับให้ Kestrel รันบนพอร์ตที่ Railway กำหนด
+        builder.WebHost.UseUrls($"http://*:{port}");
 
         var app = builder.Build();
 
-        // 👉 เปิด static files (wwwroot)
+        // ให้แสดงไฟล์ index.html จากโฟลเดอร์ wwwroot
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
-        // 👉 API: join voice
-        app.MapPost("/join", async (MusicService music) =>
+        // API สำหรับหน้าเว็บเรียกใช้
+        app.MapPost("/join", async () =>
         {
-            await music.JoinLastAsync();
-            return Results.Ok();
+            await music.JoinLastAsync(); // ใช้ Method ที่คุณมี
+            return Results.Ok(new { message = "Joined" });
         });
 
-        // 👉 API: play
-        app.MapPost("/play", async (string url, MusicService music) =>
+        app.MapPost("/play", async (string url) =>
         {
+            // ตรงนี้ถ้า url มาเป็นคำค้นหา ต้องไปผ่าน YoutubeService ก่อน
             await music.PlayLastAsync(url);
-            return Results.Ok();
+            return Results.Ok(new { message = "Playing" });
         });
 
         app.Run();
