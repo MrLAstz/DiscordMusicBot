@@ -15,13 +15,15 @@ class Program
 
         var music = new MusicService();
 
-        // ▶️ เปิดเว็บ
-        _ = Task.Run(() => WebServer.Start(args, music));
+        // 🌐 เริ่ม Web Server (ต้องอยู่ foreground)
+        var webTask = WebServer.StartAsync(music);
 
-        // ▶️ เปิดบอท
+        // 🤖 เริ่ม Discord Bot
         var bot = new BotService(token, music);
         await bot.StartAsync();
 
-        await Task.Delay(-1);
+        Console.WriteLine("✅ Bot + Web Server running");
+
+        await Task.WhenAll(webTask);
     }
 }
