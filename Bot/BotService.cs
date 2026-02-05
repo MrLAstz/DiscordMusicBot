@@ -10,6 +10,9 @@ public class BotService
     private readonly string _token;
     private readonly MusicService _music;
 
+    // ✅ 1. เพิ่มการประกาศตัวแปร _handler ตรงนี้ครับ
+    private readonly CommandHandler _handler;
+
     public BotService(string token, MusicService music)
     {
         _token = token;
@@ -19,13 +22,15 @@ public class BotService
         {
             GatewayIntents = GatewayIntents.AllUnprivileged |
                              GatewayIntents.GuildMembers |
-                             GatewayIntents.GuildPresences,
-            AlwaysDownloadUsers = true,
-            MessageCacheSize = 100
+                             GatewayIntents.GuildPresences |
+                             GatewayIntents.MessageContent, // สำคัญ: ต้องมีอันนี้บอทถึงจะอ่านข้อความ !join ได้
+            AlwaysDownloadUsers = true
         };
 
         _client = new DiscordSocketClient(config);
         _music.SetDiscordClient(_client);
+
+        // ✅ 2. สร้าง Instance ของ CommandHandler เพื่อให้ระบบคำสั่งเริ่มทำงาน
         _handler = new CommandHandler(_client, _music);
     }
 
