@@ -3,6 +3,7 @@ using Discord.Audio;
 using Discord.WebSocket;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.InteropServices; // เพิ่มสำหรับการโหลด Library บน Linux
 
 namespace DiscordMusicBot.Music;
 
@@ -12,6 +13,18 @@ public class MusicService
     private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _cts = new();
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
+
+    // ✅ ส่วนที่เพิ่มเพื่อแก้ปัญหาบอทหลุดบน Railway (Linux)
+    static MusicService()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            // บังคับโหลด Library เสียงสำหรับ Linux
+            NativeLibrary.TryLoad("libopus.so.0", out _);
+            NativeLibrary.TryLoad("libsodium.so.23", out _);
+            Console.WriteLine("[System]: Linux Native Libraries (Opus/Sodium) Attempted to load.");
+        }
+    }
 
     public void SetDiscordClient(DiscordSocketClient client) => _discordClient = client;
 
@@ -52,7 +65,6 @@ public class MusicService
 
             if (user?.VoiceChannel != null)
             {
-                // 1. เคลียร์เพลงเก่าและ Cancel Token เดิม
                 if (_cts.TryRemove(guild.Id, out var oldCts))
                 {
                     oldCts.Cancel();
@@ -73,24 +85,23 @@ public class MusicService
                     {
                         try
                         {
-                            // ตรวจสอบสถานะการเชื่อมต่อก่อน
                             if (audioClient.ConnectionState != ConnectionState.Connected)
                             {
-                                Console.WriteLine("[Warning]: AudioClient is not connected, reconnecting...");
+                                Console.WriteLine("[Warning]: AudioClient disconnected, reconnecting...");
                                 await JoinAsync(user.VoiceChannel);
                                 _audioClients.TryGetValue(guild.Id, out audioClient);
                             }
 
                             string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
-                            Console.WriteLine($"[Info]: Starting FFmpeg for URL: {url}");
+                            Console.WriteLine($"[Info]: Playing: {url}");
 
                             var psi = new ProcessStartInfo
                             {
-                                FileName = "ffmpeg",
+                                FileName = "ffmpeg", // บน Linux ต้องพิมพ์เล็ก และไม่มี .exe
                                 Arguments = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
-                                            $"-i \"{streamUrl}\" -ac 2 -f s16le -ar 48000 -loglevel warning pipe:1", // เปลี่ยนเป็น warning เพื่อดู error
+                                            $"-i \"{streamUrl}\" -ac 2 -f s16le -ar 48000 -loglevel warning pipe:1",
                                 RedirectStandardOutput = true,
-                                RedirectStandardError = true, // เปิดรับ Error จาก FFmpeg
+                                RedirectStandardError = true,
                                 UseShellExecute = false,
                                 CreateNoWindow = true
                             };
@@ -98,10 +109,10 @@ public class MusicService
                             using var process = Process.Start(psi);
                             if (process == null) return;
 
-                            // อ่าน Error จาก FFmpeg ออกมาโชว์ใน Logs
+                            // ดักดู Error จาก FFmpeg
                             _ = Task.Run(async () => {
                                 string error = await process.StandardError.ReadToEndAsync();
-                                if (!string.IsNullOrEmpty(error)) Console.WriteLine($"[FFmpeg Error]: {error}");
+                                if (!string.IsNullOrEmpty(error)) Console.WriteLine($"[FFmpeg]: {error}");
                             });
 
                             using var discordStream = audioClient.CreatePCMStream(AudioApplication.Music);
@@ -116,10 +127,9 @@ public class MusicService
                                 if (!process.HasExited) process.Kill();
                             }
                         }
-                        catch (OperationCanceledException) { Console.WriteLine("[Info]: Playback cancelled."); }
+                        catch (OperationCanceledException) { }
                         catch (Exception ex)
                         {
-                            // พิมพ์ Error ออกมาดูให้ชัดเจนใน Railway Logs
                             Console.WriteLine($"[CRITICAL ERROR]: {ex.GetType().Name} - {ex.Message}");
                             Console.WriteLine($"[StackTrace]: {ex.StackTrace}");
                         }
@@ -156,7 +166,7 @@ public class MusicService
     public async Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null || _discordClient.ConnectionState != ConnectionState.Connected)
-            return new { guild = "กำลังเชื่อมต่อ Discord...", users = new List<object>() };
+            return new { guild = "Connecting Discord...", users = new List<object>() };
 
         SocketGuildUser? user = null;
         SocketGuild? targetGuild = null;
@@ -177,7 +187,7 @@ public class MusicService
         }
 
         if (user == null || targetGuild == null || user.VoiceChannel == null)
-            return new { guild = "ไม่พบคุณในห้องเสียง", users = new List<object>() };
+            return new { guild = "Not in voice channel", users = new List<object>() };
 
         var channel = user.VoiceChannel;
         var usersInRoom = targetGuild.Users
