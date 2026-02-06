@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using DiscordMusicBot.Music;
+using Discord.Net.Providers.UDP; // ✅ 1. เพิ่ม using ตัวนี้
 
 namespace DiscordMusicBot.Bot;
 
@@ -21,22 +22,23 @@ public class BotService
             GatewayIntents = GatewayIntents.AllUnprivileged |
                              GatewayIntents.GuildMembers |
                              GatewayIntents.GuildPresences |
-                             GatewayIntents.MessageContent,
-            AlwaysDownloadUsers = true
+                             GatewayIntents.MessageContent |
+                             GatewayIntents.GuildVoiceStates, // ✅ 2. เพิ่ม Intent เรื่องสถานะเสียง
+            AlwaysDownloadUsers = true,
+            // ✅ 3. เพิ่มบรรทัดนี้สำคัญมากสำหรับการแก้ Error libopus บน Linux
+            UdpClientProvider = UdpClientProvider.Create()
         };
 
         _client = new DiscordSocketClient(config);
         _music.SetDiscordClient(_client);
 
-        // สร้างระบบจัดการคำสั่ง
         _handler = new CommandHandler(_client, _music);
     }
 
+    // ... ส่วนที่เหลือเหมือนเดิม ...
     public async Task StartAsync()
     {
         _client.Log += LogAsync;
-
-        // ลงทะเบียน Event เมื่อบอทพร้อม ให้สร้างเมนู Slash Command
         _client.Ready += OnReadyAsync;
 
         await _client.LoginAsync(TokenType.Bot, _token);
@@ -45,24 +47,12 @@ public class BotService
 
     private async Task OnReadyAsync()
     {
-        // รายการเมนูที่จะให้เด้งขึ้นมาตอนพิมพ์ /
         var commands = new List<SlashCommandBuilder>
         {
-            new SlashCommandBuilder()
-                .WithName("help")
-                .WithDescription("ดูเมนูคำสั่งทั้งหมดของบอท"),
-
-            new SlashCommandBuilder()
-                .WithName("join")
-                .WithDescription("ให้บอทเข้าห้องเสียงที่คุณอยู่"),
-
-            new SlashCommandBuilder()
-                .WithName("status")
-                .WithDescription("เช็คสถานะการเชื่อมต่อและสมาชิกในห้อง"),
-
-            new SlashCommandBuilder()
-                .WithName("play")
-                .WithDescription("เล่นเพลงจาก YouTube")
+            new SlashCommandBuilder().WithName("help").WithDescription("ดูเมนูคำสั่งทั้งหมดของบอท"),
+            new SlashCommandBuilder().WithName("join").WithDescription("ให้บอทเข้าห้องเสียงที่คุณอยู่"),
+            new SlashCommandBuilder().WithName("status").WithDescription("เช็คสถานะการเชื่อมต่อและสมาชิกในห้อง"),
+            new SlashCommandBuilder().WithName("play").WithDescription("เล่นเพลงจาก YouTube")
                 .AddOption("url", ApplicationCommandOptionType.String, "วางลิงก์ YouTube ที่นี่", isRequired: true)
         };
 
