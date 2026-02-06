@@ -7,15 +7,7 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        // โหลด Library เสียงสำหรับ Linux บน Railway
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            // ไม่ต้องระบุ Path เดี๋ยว OS หาเองใน /usr/lib
-            NativeLibrary.TryLoad("libopus", out _);
-            NativeLibrary.TryLoad("libsodium", out _);
-            Console.WriteLine("🐧 Audio libraries initialized.");
-        }
-
+        // ปล่อยให้ Runtime จัดการ Library เอง เราแค่ดึง Token และ Port มาทำงาน
         var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
         var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 
