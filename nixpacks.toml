@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["dotnet-sdk_10", "libopus", "libsodium", "ffmpeg"]
+nixPkgs = ["dotnet-sdk", "libopus", "libsodium", "ffmpeg"]
 
 [phases.build]
 cmds = ["dotnet publish -c Release -o out"]
