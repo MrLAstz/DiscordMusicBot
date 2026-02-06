@@ -4,8 +4,11 @@ nixPkgs = ["dotnet-sdk", "libopus", "libsodium", "ffmpeg"]
 [phases.build]
 cmds = [
     "dotnet publish -c Release -o out",
-    "ln -s /usr/lib/x86_64-linux-gnu/libopus.so.0 ./out/libopus.so",
-    "ln -s /usr/lib/x86_64-linux-gnu/libsodium.so.23 ./out/libsodium.so"
+    "find / -name 'libopus.so*' -exec cp {} ./out/libopus.so \\; 2>/dev/null || true",
+    "find / -name 'libopus.so*' -exec cp {} ./out/opus.so \\; 2>/dev/null || true",
+    "find / -name 'libsodium.so*' -exec cp {} ./out/libsodium.so \\; 2>/dev/null || true",
+    "find / -name 'libsodium.so*' -exec cp {} ./out/sodium.so \\; 2>/dev/null || true",
+    "chmod +x ./out/*"
 ]
 
 [start]

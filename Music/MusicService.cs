@@ -21,14 +21,15 @@ public class MusicService
         {
             try
             {
-                // พยายามโหลดจากชื่อมาตรฐาน
+                // โหลดให้ครบทุกชื่อที่มันพยายามวิ่งหา
                 NativeLibrary.TryLoad("libopus.so", out _);
+                NativeLibrary.TryLoad("opus.so", out _);
                 NativeLibrary.TryLoad("libsodium.so", out _);
-                Console.WriteLine("✅ [System]: Native Libraries linked successfully.");
+                Console.WriteLine("✅ [System]: Linux libraries linked and loaded.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ [System]: Native Library load warning: {ex.Message}");
+                Console.WriteLine($"⚠️ [System]: Pre-load warning: {ex.Message}");
             }
         }
     }
