@@ -4,8 +4,10 @@ nixPkgs = ["dotnet-sdk", "libopus", "libsodium", "ffmpeg"]
 [phases.build]
 cmds = [
     "dotnet publish -c Release -o out",
-    "find /nix/store -name 'libopus.so*' -exec ln -s {} ./out/opus.so \\; 2>/dev/null || true",
-    "find /nix/store -name 'libsodium.so*' -exec ln -s {} ./out/sodium.so \\; 2>/dev/null || true"
+    "cp $(find /nix/store -name 'libopus.so*' | head -n 1) ./out/opus.so || true",
+    "cp $(find /nix/store -name 'libopus.so*' | head -n 1) ./out/libopus.so || true",
+    "cp $(find /nix/store -name 'libsodium.so*' | head -n 1) ./out/sodium.so || true",
+    "cp $(find /nix/store -name 'libsodium.so*' | head -n 1) ./out/libsodium.so || true"
 ]
 
 [start]

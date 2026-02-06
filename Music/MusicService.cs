@@ -3,7 +3,7 @@ using Discord.Audio;
 using Discord.WebSocket;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.InteropServices; // เพิ่มสำหรับการโหลด Library บน Linux
+using System.Runtime.InteropServices;
 
 namespace DiscordMusicBot.Music;
 
@@ -14,32 +14,27 @@ public class MusicService
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
 
-    // ✅ ส่วนที่เพิ่มเพื่อแก้ปัญหาบอทหลุดบน Railway (Linux)
     static MusicService()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             try
             {
-                // บังคับโหลดโดยระบุตำแหน่งที่แน่นอนใน Railway
-                string opusPath = Path.Combine(AppContext.BaseDirectory, "opus.so");
-                string sodiumPath = Path.Combine(AppContext.BaseDirectory, "sodium.so");
-
-                if (File.Exists(opusPath))
+                // ตรวจสอบชื่อไฟล์ที่พบบ่อยบน Linux และโหลดล่วงหน้า
+                string[] files = { "opus.so", "libopus.so", "sodium.so", "libsodium.so" };
+                foreach (var file in files)
                 {
-                    NativeLibrary.Load(opusPath);
-                    Console.WriteLine($"✅ [Audio] Loaded opus from: {opusPath}");
+                    string fullPath = Path.Combine(AppContext.BaseDirectory, file);
+                    if (File.Exists(fullPath))
+                    {
+                        try { NativeLibrary.Load(fullPath); } catch { }
+                    }
                 }
-
-                if (File.Exists(sodiumPath))
-                {
-                    NativeLibrary.Load(sodiumPath);
-                    Console.WriteLine($"✅ [Audio] Loaded sodium from: {sodiumPath}");
-                }
+                Console.WriteLine("🐧 [Audio] Linux Native Libraries pre-loaded.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ [Audio] Manual load failed: {ex.Message}");
+                Console.WriteLine($"⚠️ [Audio] Note: {ex.Message}");
             }
         }
     }
@@ -64,12 +59,9 @@ public class MusicService
     public async Task JoinAsync(IVoiceChannel channel)
     {
         var audioClient = await channel.ConnectAsync();
-
-        // เมื่อหลุดจากการเชื่อมต่อ ให้ลบออกจาก list
         audioClient.Disconnected += async (ex) => {
             _audioClients.TryRemove(channel.Guild.Id, out _);
         };
-
         _audioClients[channel.Guild.Id] = audioClient;
     }
 
@@ -105,7 +97,6 @@ public class MusicService
                         {
                             if (audioClient.ConnectionState != ConnectionState.Connected)
                             {
-                                Console.WriteLine("[Warning]: AudioClient disconnected, reconnecting...");
                                 await JoinAsync(user.VoiceChannel);
                                 _audioClients.TryGetValue(guild.Id, out audioClient);
                             }
@@ -115,7 +106,7 @@ public class MusicService
 
                             var psi = new ProcessStartInfo
                             {
-                                FileName = "ffmpeg", // บน Linux ต้องพิมพ์เล็ก และไม่มี .exe
+                                FileName = "ffmpeg",
                                 Arguments = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
                                             $"-i \"{streamUrl}\" -ac 2 -f s16le -ar 48000 -loglevel warning pipe:1",
                                 RedirectStandardOutput = true,
@@ -127,17 +118,18 @@ public class MusicService
                             using var process = Process.Start(psi);
                             if (process == null) return;
 
-                            // ดักดู Error จาก FFmpeg
                             _ = Task.Run(async () => {
                                 string error = await process.StandardError.ReadToEndAsync();
                                 if (!string.IsNullOrEmpty(error)) Console.WriteLine($"[FFmpeg]: {error}");
                             });
 
-                            using var discordStream = audioClient.CreatePCMStream(AudioApplication.Music);
+                            // ปรับ Bitrate และ Buffer ให้เหมาะสมกับ Linux Server
+                            using var discordStream = audioClient.CreatePCMStream(AudioApplication.Music, bitrate: 96000, bufferMillis: 200);
 
                             try
                             {
-                                await process.StandardOutput.BaseStream.CopyToAsync(discordStream, 16384, newCts.Token);
+                                // ใช้ BufferSize 32KB เพื่อความลื่นไหล
+                                await process.StandardOutput.BaseStream.CopyToAsync(discordStream, 32768, newCts.Token);
                             }
                             finally
                             {
@@ -148,8 +140,7 @@ public class MusicService
                         catch (OperationCanceledException) { }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[CRITICAL ERROR]: {ex.GetType().Name} - {ex.Message}");
-                            Console.WriteLine($"[StackTrace]: {ex.StackTrace}");
+                            Console.WriteLine($"[CRITICAL ERROR]: {ex.Message}");
                         }
                         finally
                         {
@@ -184,7 +175,7 @@ public class MusicService
     public async Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null || _discordClient.ConnectionState != ConnectionState.Connected)
-            return new { guild = "Connecting Discord...", users = new List<object>() };
+            return new { guild = "Connecting...", users = new List<object>() };
 
         SocketGuildUser? user = null;
         SocketGuild? targetGuild = null;
@@ -192,26 +183,16 @@ public class MusicService
         foreach (var g in _discordClient.Guilds)
         {
             user = g.GetUser(userId);
-            if (user == null)
-            {
-                try
-                {
-                    var restUser = await _discordClient.Rest.GetGuildUserAsync(g.Id, userId);
-                    if (restUser != null) user = g.GetUser(restUser.Id);
-                }
-                catch { continue; }
-            }
             if (user != null) { targetGuild = g; break; }
         }
 
         if (user == null || targetGuild == null || user.VoiceChannel == null)
-            return new { guild = "Not in voice channel", users = new List<object>() };
+            return new { guild = "Not in voice", users = new List<object>() };
 
         var channel = user.VoiceChannel;
         var usersInRoom = targetGuild.Users
             .Where(u => u.VoiceChannel?.Id == channel.Id)
-            .Select(u => new
-            {
+            .Select(u => new {
                 name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
                 status = u.Status.ToString().ToLower()
