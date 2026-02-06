@@ -1,13 +1,24 @@
-[phases.setup]
+﻿[phases.setup]
 nixPkgs = ["dotnet-sdk", "libopus", "libsodium", "ffmpeg"]
 
 [phases.build]
 cmds = [
     "dotnet publish -c Release -o out",
-    "cp $(find /nix/store -name 'libopus.so*' | head -n 1) ./out/opus.so || true",
-    "cp $(find /nix/store -name 'libopus.so*' | head -n 1) ./out/libopus.so || true",
-    "cp $(find /nix/store -name 'libsodium.so*' | head -n 1) ./out/sodium.so || true",
-    "cp $(find /nix/store -name 'libsodium.so*' | head -n 1) ./out/libsodium.so || true"
+    # หาไฟล์จริงใน Nix Store
+    "OPUS_PATH=$(find /nix/store -name 'libopus.so*' | head -n 1)",
+    "SODIUM_PATH=$(find /nix/store -name 'libsodium.so*' | head -n 1)",
+    # ก๊อปปี้มาไว้ที่โฟลเดอร์ out
+    "cp $OPUS_PATH ./out/opus.so",
+    "cp $OPUS_PATH ./out/libopus.so",
+    "cp $SODIUM_PATH ./out/sodium.so",
+    "cp $SODIUM_PATH ./out/libsodium.so",
+    # --- ท่าไม้ตาย: สร้าง Link ไปยังที่ที่ Log ฟ้อง (Shared Path) ---
+    "DOTNET_RUNTIME_PATH=/mise/installs/dotnet/10.0.101/shared/Microsoft.NETCore.App/10.0.1",
+    "mkdir -p $DOTNET_RUNTIME_PATH",
+    "ln -s $OPUS_PATH $DOTNET_RUNTIME_PATH/opus.so || true",
+    "ln -s $OPUS_PATH $DOTNET_RUNTIME_PATH/libopus.so || true",
+    "ln -s $SODIUM_PATH $DOTNET_RUNTIME_PATH/sodium.so || true",
+    "ln -s $SODIUM_PATH $DOTNET_RUNTIME_PATH/libsodium.so || true"
 ]
 
 [start]

@@ -18,24 +18,21 @@ public class MusicService
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            try
+            NativeLibrary.SetDllImportResolver(typeof(MusicService).Assembly, (libraryName, assembly, searchPath) =>
             {
-                // ตรวจสอบชื่อไฟล์ที่พบบ่อยบน Linux และโหลดล่วงหน้า
-                string[] files = { "opus.so", "libopus.so", "sodium.so", "libsodium.so" };
-                foreach (var file in files)
+                if (libraryName == "opus" || libraryName == "libopus")
                 {
-                    string fullPath = Path.Combine(AppContext.BaseDirectory, file);
-                    if (File.Exists(fullPath))
+                    // ลองหาในหลายๆ ชื่อที่ Linux อาจจะเรียก
+                    string[] opusFiles = { "opus.so", "libopus.so", "libopus.so.0" };
+                    foreach (var file in opusFiles)
                     {
-                        try { NativeLibrary.Load(fullPath); } catch { }
+                        if (NativeLibrary.TryLoad(Path.Combine(AppContext.BaseDirectory, file), out var handle)) return handle;
+                        if (NativeLibrary.TryLoad(file, out handle)) return handle;
                     }
                 }
-                Console.WriteLine("🐧 [Audio] Linux Native Libraries pre-loaded.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️ [Audio] Note: {ex.Message}");
-            }
+                return IntPtr.Zero;
+            });
+            Console.WriteLine("🐧 [Audio] DllImportResolver registered for Linux.");
         }
     }
 
