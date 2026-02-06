@@ -15,7 +15,7 @@ public class MusicService
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
 
-    // ====== FIX libopus on Linux / Railway ======
+    // ===== FIX libopus (Linux / Railway) =====
     static MusicService()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -53,7 +53,7 @@ public class MusicService
     public void SetDiscordClient(DiscordSocketClient client)
         => _discordClient = client;
 
-    // ====== JOIN BY USER ======
+    // ===== JOIN BY USER ID =====
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
         if (_discordClient == null) return false;
@@ -74,7 +74,7 @@ public class MusicService
         return false;
     }
 
-    // ====== JOIN VOICE (มีแค่อันเดียว) ======
+    // ===== JOIN VOICE (มีอันเดียว) =====
     public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
         if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
@@ -83,7 +83,7 @@ public class MusicService
             return existing;
         }
 
-        _audioClients.TryRemove(channel.Guild.Id, out _);
+        _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
 
         Console.WriteLine("🔊 Connecting to voice...");
         var audioClient = await channel.ConnectAsync(selfDeaf: true);
@@ -91,7 +91,7 @@ public class MusicService
         audioClient.Disconnected += _ =>
         {
             Console.WriteLine("🔌 Voice disconnected");
-            _audioClients.TryRemove(channel.Guild.Id, out _);
+            _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
             return Task.CompletedTask;
         };
 
@@ -99,7 +99,7 @@ public class MusicService
         return audioClient;
     }
 
-    // ====== PLAY ======
+    // ===== PLAY =====
     public async Task PlayByUserIdAsync(ulong userId, string url)
     {
         if (_discordClient == null) return;
@@ -112,7 +112,7 @@ public class MusicService
 
             if (user?.VoiceChannel == null) continue;
 
-            if (_cts.TryRemove(guild.Id, out var oldCts))
+            if (_cts.TryRemove(guild.Id, out CancellationTokenSource oldCts))
             {
                 oldCts.Cancel();
                 oldCts.Dispose();
@@ -124,7 +124,7 @@ public class MusicService
             var audioClient = await JoinAsync(user.VoiceChannel);
             if (audioClient == null) return;
 
-            await Task.Delay(500); // รอ voice websocket พร้อม
+            await Task.Delay(500); // รอ websocket พร้อม
 
             _ = Task.Run(async () =>
             {
@@ -183,7 +183,7 @@ public class MusicService
                 }
                 finally
                 {
-                    _cts.TryRemove(guild.Id, out _);
+                    _cts.TryRemove(guild.Id, out CancellationTokenSource _);
                 }
             }, cts.Token);
 
@@ -191,7 +191,7 @@ public class MusicService
         }
     }
 
-    // ====== SKIP ======
+    // ===== SKIP =====
     public async Task SkipAsync(ulong userId)
     {
         if (_discordClient == null) return;
@@ -214,7 +214,7 @@ public class MusicService
 
     public Task ToggleAsync(ulong userId) => SkipAsync(userId);
 
-    // ====== USERS IN VOICE ======
+    // ===== USERS IN VOICE =====
     public Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null)
