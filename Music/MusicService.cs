@@ -78,7 +78,7 @@ public class MusicService
         var audioClient = await channel.ConnectAsync();
         audioClient.Disconnected += _ =>
         {
-            _audioClients.TryRemove(channel.Guild.Id, out _);
+            _audioClients.TryRemove(channel.Guild.Id, out IAudioClient? removed);
             return Task.CompletedTask;
         };
 
