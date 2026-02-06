@@ -20,19 +20,28 @@ public class MusicService
         {
             NativeLibrary.SetDllImportResolver(typeof(MusicService).Assembly, (libraryName, assembly, searchPath) =>
             {
+                // ถ้า .NET ถามหา opus หรือ libopus
                 if (libraryName == "opus" || libraryName == "libopus")
                 {
-                    // ลองหาในหลายๆ ชื่อที่ Linux อาจจะเรียก
-                    string[] opusFiles = { "opus.so", "libopus.so", "libopus.so.0" };
-                    foreach (var file in opusFiles)
+                    string baseDir = AppContext.BaseDirectory;
+                    // บังคับให้โหลดจากไฟล์ที่เราก๊อปมาวางใน out
+                    string[] paths = {
+                    Path.Combine(baseDir, "libopus.so"),
+                    Path.Combine(baseDir, "opus.so"),
+                    "libopus.so.0"
+                };
+
+                    foreach (var path in paths)
                     {
-                        if (NativeLibrary.TryLoad(Path.Combine(AppContext.BaseDirectory, file), out var handle)) return handle;
-                        if (NativeLibrary.TryLoad(file, out handle)) return handle;
+                        if (NativeLibrary.TryLoad(path, out var handle))
+                        {
+                            Console.WriteLine($"✅ [Audio] Successfully bound to: {path}");
+                            return handle;
+                        }
                     }
                 }
                 return IntPtr.Zero;
             });
-            Console.WriteLine("🐧 [Audio] DllImportResolver registered for Linux.");
         }
     }
 
