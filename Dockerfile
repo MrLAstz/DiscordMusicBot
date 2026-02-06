@@ -15,12 +15,13 @@ RUN apt-get update && apt-get install -y \
     libopus0 \
     libsodium23 \
     ffmpeg \
+    && ln -s /usr/lib/x86_64-linux-gnu/libopus.so.0 /usr/lib/libopus.so \
+    && ln -s /usr/lib/x86_64-linux-gnu/libopus.so.0 /usr/lib/opus.so \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=build /app .
 
-# Railway จะ inject PORT มาให้
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
 
 ENTRYPOINT ["dotnet", "DiscordMusicBot.dll"]
