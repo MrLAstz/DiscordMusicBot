@@ -11,6 +11,7 @@ public class MusicService
 {
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
     private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _cts = new();
+
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
 
@@ -19,7 +20,8 @@ public class MusicService
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            NativeLibrary.SetDllImportResolver(typeof(MusicService).Assembly,
+            NativeLibrary.SetDllImportResolver(
+                typeof(MusicService).Assembly,
                 (libraryName, assembly, searchPath) =>
                 {
                     if (libraryName == "opus" || libraryName == "libopus")
@@ -42,6 +44,7 @@ public class MusicService
 
                         Console.WriteLine("❌ libopus not found");
                     }
+
                     return IntPtr.Zero;
                 });
         }
@@ -50,7 +53,7 @@ public class MusicService
     public void SetDiscordClient(DiscordSocketClient client)
         => _discordClient = client;
 
-    // ====== JOIN ======
+    // ====== JOIN BY USER ======
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
         if (_discordClient == null) return false;
@@ -67,18 +70,21 @@ public class MusicService
                 return true;
             }
         }
+
         return false;
     }
 
-    // 🔥 ต้องเป็น public
+    // ====== JOIN VOICE ======
     public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
+        // reuse ถ้ายังต่ออยู่
         if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
             existing.ConnectionState == ConnectionState.Connected)
         {
             return existing;
         }
 
+        // ลบ session เก่า (กัน 4006)
         _audioClients.TryRemove(channel.Guild.Id, out _);
 
         Console.WriteLine("🔊 Connecting to voice...");
@@ -108,6 +114,7 @@ public class MusicService
 
             if (user?.VoiceChannel == null) continue;
 
+            // stop เพลงเก่า
             if (_cts.TryRemove(guild.Id, out var oldCts))
             {
                 oldCts.Cancel();
@@ -120,6 +127,7 @@ public class MusicService
             var audioClient = await JoinAsync(user.VoiceChannel);
             if (audioClient == null) return;
 
+            // รอให้ voice websocket พร้อม (สำคัญบน Railway)
             await Task.Delay(500);
 
             _ = Task.Run(async () =>
@@ -168,7 +176,8 @@ public class MusicService
                     finally
                     {
                         await discord.FlushAsync();
-                        if (!ffmpeg.HasExited) ffmpeg.Kill();
+                        if (!ffmpeg.HasExited)
+                            ffmpeg.Kill();
                     }
                 }
                 catch (OperationCanceledException) { }
@@ -186,8 +195,9 @@ public class MusicService
         }
     }
 
-    // ====== SKIP ======
-    public Task ToggleAsync(ulong userId) => SkipAsync(userId);
+    // ====== SKIP / TOGGLE ======
+    public Task ToggleAsync(ulong userId)
+        => SkipAsync(userId);
 
     public async Task SkipAsync(ulong userId)
     {
@@ -210,10 +220,13 @@ public class MusicService
     }
 
     // ====== USERS IN VOICE ======
-    public async Task<object> GetUsersInVoice(ulong userId)
+    public Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null)
-            return new { guild = "offline", users = new List<object>() };
+        {
+            return Task.FromResult<object>(
+                new { guild = "offline", users = new List<object>() });
+        }
 
         SocketGuildUser? user = null;
         SocketGuild? guild = null;
@@ -221,11 +234,18 @@ public class MusicService
         foreach (var g in _discordClient.Guilds)
         {
             user = g.GetUser(userId);
-            if (user != null) { guild = g; break; }
+            if (user != null)
+            {
+                guild = g;
+                break;
+            }
         }
 
         if (user?.VoiceChannel == null || guild == null)
-            return new { guild = "not in voice", users = new List<object>() };
+        {
+            return Task.FromResult<object>(
+                new { guild = "not in voice", users = new List<object>() });
+        }
 
         var channel = user.VoiceChannel;
 
@@ -239,10 +259,10 @@ public class MusicService
             })
             .ToList();
 
-        return new
+        return Task.FromResult<object>(new
         {
             guild = $"{guild.Name} ({channel.Name})",
             users
-        };
+        });
     }
 }
