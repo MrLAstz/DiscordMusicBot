@@ -101,6 +101,33 @@ public class MusicService
         return audioClient;
     }
 
+    public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
+    {
+        // reuse ถ้ายังต่ออยู่
+        if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
+            existing.ConnectionState == ConnectionState.Connected)
+        {
+            return existing;
+        }
+
+        // ❌ ลบ session เก่า (ตรงนี้แหละที่เคยพัง)
+        _audioClients.TryRemove(channel.Guild.Id, out _);
+
+        Console.WriteLine("🔊 Connecting to voice...");
+        var audioClient = await channel.ConnectAsync(selfDeaf: true);
+
+        audioClient.Disconnected += _ =>
+        {
+            Console.WriteLine("🔌 Voice disconnected");
+            _audioClients.TryRemove(channel.Guild.Id, out _);
+            return Task.CompletedTask;
+        };
+
+        _audioClients[channel.Guild.Id] = audioClient;
+        return audioClient;
+    }
+
+
     // ====== PLAY ======
     public async Task PlayByUserIdAsync(ulong userId, string url)
     {
