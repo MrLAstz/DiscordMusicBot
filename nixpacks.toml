@@ -2,7 +2,11 @@
 nixPkgs = ["dotnet-sdk", "libopus", "libsodium", "ffmpeg"]
 
 [phases.build]
-cmds = ["dotnet publish -c Release -o out"]
+cmds = [
+    "dotnet publish -c Release -o out",
+    "ln -s /usr/lib/x86_64-linux-gnu/libopus.so.0 ./out/libopus.so",
+    "ln -s /usr/lib/x86_64-linux-gnu/libsodium.so.23 ./out/libsodium.so"
+]
 
 [start]
 cmd = "./out/DiscordMusicBot"

@@ -19,10 +19,17 @@ public class MusicService
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            // บังคับโหลด Library เสียงสำหรับ Linux
-            NativeLibrary.TryLoad("libopus.so.0", out _);
-            NativeLibrary.TryLoad("libsodium.so.23", out _);
-            Console.WriteLine("[System]: Linux Native Libraries (Opus/Sodium) Attempted to load.");
+            try
+            {
+                // พยายามโหลดจากชื่อมาตรฐาน
+                NativeLibrary.TryLoad("libopus.so", out _);
+                NativeLibrary.TryLoad("libsodium.so", out _);
+                Console.WriteLine("✅ [System]: Native Libraries linked successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ [System]: Native Library load warning: {ex.Message}");
+            }
         }
     }
 
