@@ -65,13 +65,13 @@ public class MusicService
                 ex.ConnectionState == ConnectionState.Connected)
                 return ex;
 
-            _audioClients.TryRemove(channel.Guild.Id, out _);
+            _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
 
             var client = await channel.ConnectAsync(selfDeaf: true);
 
             client.Disconnected += _ =>
             {
-                _audioClients.TryRemove(channel.Guild.Id, out _);
+                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
                 return Task.CompletedTask;
             };
 
