@@ -21,15 +21,25 @@ public class MusicService
         {
             try
             {
-                // โหลดให้ครบทุกชื่อที่มันพยายามวิ่งหา
-                NativeLibrary.TryLoad("libopus.so", out _);
-                NativeLibrary.TryLoad("opus.so", out _);
-                NativeLibrary.TryLoad("libsodium.so", out _);
-                Console.WriteLine("✅ [System]: Linux libraries linked and loaded.");
+                // บังคับโหลดโดยระบุตำแหน่งที่แน่นอนใน Railway
+                string opusPath = Path.Combine(AppContext.BaseDirectory, "opus.so");
+                string sodiumPath = Path.Combine(AppContext.BaseDirectory, "sodium.so");
+
+                if (File.Exists(opusPath))
+                {
+                    NativeLibrary.Load(opusPath);
+                    Console.WriteLine($"✅ [Audio] Loaded opus from: {opusPath}");
+                }
+
+                if (File.Exists(sodiumPath))
+                {
+                    NativeLibrary.Load(sodiumPath);
+                    Console.WriteLine($"✅ [Audio] Loaded sodium from: {sodiumPath}");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ [System]: Pre-load warning: {ex.Message}");
+                Console.WriteLine($"⚠️ [Audio] Manual load failed: {ex.Message}");
             }
         }
     }
