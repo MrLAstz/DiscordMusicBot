@@ -5,9 +5,7 @@ nixPkgs = ["dotnet-sdk", "libopus", "libsodium", "ffmpeg"]
 cmds = [
     "dotnet publish -c Release -o out",
     "find /nix/store -name 'libopus.so*' -exec ln -s {} ./out/opus.so \\; 2>/dev/null || true",
-    "find /nix/store -name 'libopus.so*' -exec ln -s {} ./out/libopus.so \\; 2>/dev/null || true",
-    "find /nix/store -name 'libsodium.so*' -exec ln -s {} ./out/sodium.so \\; 2>/dev/null || true",
-    "find /nix/store -name 'libsodium.so*' -exec ln -s {} ./out/libsodium.so \\; 2>/dev/null || true"
+    "find /nix/store -name 'libsodium.so*' -exec ln -s {} ./out/sodium.so \\; 2>/dev/null || true"
 ]
 
 [start]
