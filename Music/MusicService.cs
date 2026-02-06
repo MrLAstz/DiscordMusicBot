@@ -70,16 +70,15 @@ public class MusicService
         return false;
     }
 
-    private async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
+    // 🔥 ต้องเป็น public
+    public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
-        // reuse ถ้ายังต่ออยู่
         if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
             existing.ConnectionState == ConnectionState.Connected)
         {
             return existing;
         }
 
-        // ลบ session เก่า
         _audioClients.TryRemove(channel.Guild.Id, out _);
 
         Console.WriteLine("🔊 Connecting to voice...");
@@ -109,7 +108,6 @@ public class MusicService
 
             if (user?.VoiceChannel == null) continue;
 
-            // stop เพลงเก่า
             if (_cts.TryRemove(guild.Id, out var oldCts))
             {
                 oldCts.Cancel();
@@ -122,7 +120,6 @@ public class MusicService
             var audioClient = await JoinAsync(user.VoiceChannel);
             if (audioClient == null) return;
 
-            // รอ websocket พร้อม (สำคัญมากบน Railway)
             await Task.Delay(500);
 
             _ = Task.Run(async () =>
@@ -189,7 +186,7 @@ public class MusicService
         }
     }
 
-    // ====== SKIP / TOGGLE ======
+    // ====== SKIP ======
     public Task ToggleAsync(ulong userId) => SkipAsync(userId);
 
     public async Task SkipAsync(ulong userId)
