@@ -11,6 +11,7 @@ public class MusicService
 {
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
     private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _cts = new();
+    private readonly SemaphoreSlim _joinLock = new(1, 1);
 
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
@@ -74,29 +75,40 @@ public class MusicService
         return false;
     }
 
-    // ===== JOIN VOICE (มีอันเดียว) =====
+    // ===== JOIN VOICE =====
     public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
-        if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
-            existing.ConnectionState == ConnectionState.Connected)
+        await _joinLock.WaitAsync();
+        try
         {
-            return existing;
+            if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
+                existing.ConnectionState == ConnectionState.Connected)
+            {
+                return existing;
+            }
+
+            _audioClients.TryRemove(channel.Guild.Id, out _);
+
+            Console.WriteLine("🔊 Connecting to voice...");
+            var audioClient = await channel.ConnectAsync(
+                selfDeaf: true,
+                selfMute: false
+            );
+
+            audioClient.Disconnected += _ =>
+            {
+                Console.WriteLine("🔌 Voice disconnected");
+                _audioClients.TryRemove(channel.Guild.Id, out _);
+                return Task.CompletedTask;
+            };
+
+            _audioClients[channel.Guild.Id] = audioClient;
+            return audioClient;
         }
-
-        _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
-
-        Console.WriteLine("🔊 Connecting to voice...");
-        var audioClient = await channel.ConnectAsync(selfDeaf: true);
-
-        audioClient.Disconnected += _ =>
+        finally
         {
-            Console.WriteLine("🔌 Voice disconnected");
-            _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
-            return Task.CompletedTask;
-        };
-
-        _audioClients[channel.Guild.Id] = audioClient;
-        return audioClient;
+            _joinLock.Release();
+        }
     }
 
     // ===== PLAY =====
@@ -112,7 +124,7 @@ public class MusicService
 
             if (user?.VoiceChannel == null) continue;
 
-            if (_cts.TryRemove(guild.Id, out CancellationTokenSource oldCts))
+            if (_cts.TryRemove(guild.Id, out var oldCts))
             {
                 oldCts.Cancel();
                 oldCts.Dispose();
@@ -124,15 +136,16 @@ public class MusicService
             var audioClient = await JoinAsync(user.VoiceChannel);
             if (audioClient == null) return;
 
-            await Task.Delay(500); // รอ websocket พร้อม
+            if (!await WaitForVoiceReady(audioClient))
+            {
+                Console.WriteLine("❌ Abort play: voice not ready");
+                return;
+            }
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    if (audioClient.ConnectionState != ConnectionState.Connected)
-                        return;
-
                     string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
                     Console.WriteLine($"▶ Playing: {streamUrl}");
 
@@ -183,12 +196,28 @@ public class MusicService
                 }
                 finally
                 {
-                    _cts.TryRemove(guild.Id, out CancellationTokenSource _);
+                    _cts.TryRemove(guild.Id, out _);
                 }
             }, cts.Token);
 
             return;
         }
+    }
+
+    private async Task<bool> WaitForVoiceReady(IAudioClient client, int timeoutMs = 8000)
+    {
+        var sw = Stopwatch.StartNew();
+
+        while (sw.ElapsedMilliseconds < timeoutMs)
+        {
+            if (client.ConnectionState == ConnectionState.Connected)
+                return true;
+
+            await Task.Delay(200);
+        }
+
+        Console.WriteLine("❌ Voice not ready (timeout)");
+        return false;
     }
 
     // ===== SKIP =====
