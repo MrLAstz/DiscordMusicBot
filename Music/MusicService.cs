@@ -23,29 +23,13 @@ public class MusicService
         {
             NativeLibrary.SetDllImportResolver(
                 typeof(MusicService).Assembly,
-                (libraryName, assembly, searchPath) =>
+                (libraryName, _, _) =>
                 {
                     if (libraryName == "opus" || libraryName == "libopus")
                     {
-                        string[] paths =
-                        {
-                            "libopus.so.0",
-                            "libopus.so",
-                            "opus.so"
-                        };
-
-                        foreach (var path in paths)
-                        {
-                            if (NativeLibrary.TryLoad(path, out var handle))
-                            {
-                                Console.WriteLine($"✅ libopus loaded: {path}");
-                                return handle;
-                            }
-                        }
-
-                        Console.WriteLine("❌ libopus not found");
+                        foreach (var p in new[] { "libopus.so.0", "libopus.so", "opus.so" })
+                            if (NativeLibrary.TryLoad(p, out var h)) return h;
                     }
-
                     return IntPtr.Zero;
                 });
         }
@@ -54,24 +38,20 @@ public class MusicService
     public void SetDiscordClient(DiscordSocketClient client)
         => _discordClient = client;
 
-    // ===== JOIN BY USER ID =====
+    // ===== JOIN =====
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
         if (_discordClient == null) return false;
 
-        foreach (var guild in _discordClient.Guilds)
+        foreach (var g in _discordClient.Guilds)
         {
-            var user =
-                guild.GetUser(userId) ??
-                await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser;
-
-            if (user?.VoiceChannel != null)
+            var u = g.GetUser(userId);
+            if (u?.VoiceChannel != null)
             {
-                await JoinAsync(user.VoiceChannel);
+                await JoinAsync(u.VoiceChannel);
                 return true;
             }
         }
-
         return false;
     }
 
@@ -81,29 +61,22 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
-                existing.ConnectionState == ConnectionState.Connected)
-            {
-                return existing;
-            }
+            if (_audioClients.TryGetValue(channel.Guild.Id, out var ex) &&
+                ex.ConnectionState == ConnectionState.Connected)
+                return ex;
 
             _audioClients.TryRemove(channel.Guild.Id, out _);
 
-            Console.WriteLine("🔊 Connecting to voice...");
-            var audioClient = await channel.ConnectAsync(
-                selfDeaf: true,
-                selfMute: false
-            );
+            var client = await channel.ConnectAsync(selfDeaf: true);
 
-            audioClient.Disconnected += _ =>
+            client.Disconnected += _ =>
             {
-                Console.WriteLine("🔌 Voice disconnected");
                 _audioClients.TryRemove(channel.Guild.Id, out _);
                 return Task.CompletedTask;
             };
 
-            _audioClients[channel.Guild.Id] = audioClient;
-            return audioClient;
+            _audioClients[channel.Guild.Id] = client;
+            return client;
         }
         finally
         {
@@ -116,88 +89,48 @@ public class MusicService
     {
         if (_discordClient == null) return;
 
-        foreach (var guild in _discordClient.Guilds)
+        foreach (var g in _discordClient.Guilds)
         {
-            var user =
-                guild.GetUser(userId) ??
-                await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser;
+            var u = g.GetUser(userId);
+            if (u?.VoiceChannel == null) continue;
 
-            if (user?.VoiceChannel == null) continue;
-
-            if (_cts.TryRemove(guild.Id, out var oldCts))
+            if (_cts.TryRemove(g.Id, out var old))
             {
-                oldCts.Cancel();
-                oldCts.Dispose();
+                old.Cancel();
+                old.Dispose();
             }
 
             var cts = new CancellationTokenSource();
-            _cts[guild.Id] = cts;
+            _cts[g.Id] = cts;
 
-            var audioClient = await JoinAsync(user.VoiceChannel);
-            if (audioClient == null) return;
-
-            if (!await WaitForVoiceReady(audioClient))
-            {
-                Console.WriteLine("❌ Abort play: voice not ready");
-                return;
-            }
+            var audio = await JoinAsync(u.VoiceChannel);
+            if (audio == null) return;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
-                    Console.WriteLine($"▶ Playing: {streamUrl}");
+                    var streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
 
                     var psi = new ProcessStartInfo
                     {
                         FileName = "ffmpeg",
                         Arguments =
                             $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
-                            $"-i \"{streamUrl}\" " +
-                            "-ac 2 -ar 48000 -f s16le -loglevel error pipe:1",
+                            $"-i \"{streamUrl}\" -ac 2 -ar 48000 -f s16le pipe:1",
                         RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
+                        UseShellExecute = false
                     };
 
-                    using var ffmpeg = Process.Start(psi);
-                    if (ffmpeg == null) return;
+                    using var ffmpeg = Process.Start(psi)!;
+                    using var discord = audio.CreatePCMStream(AudioApplication.Music);
 
-                    _ = Task.Run(async () =>
-                    {
-                        var err = await ffmpeg.StandardError.ReadToEndAsync();
-                        if (!string.IsNullOrWhiteSpace(err))
-                            Console.WriteLine($"[ffmpeg] {err}");
-                    });
+                    await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
+                        discord, 81920, cts.Token);
 
-                    using var discord = audioClient.CreatePCMStream(
-                        AudioApplication.Music,
-                        bitrate: 96000,
-                        bufferMillis: 200);
-
-                    try
-                    {
-                        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
-                            discord, 32768, cts.Token);
-                    }
-                    finally
-                    {
-                        await discord.FlushAsync();
-                        if (!ffmpeg.HasExited)
-                            ffmpeg.Kill();
-                    }
+                    await discord.FlushAsync();
                 }
-                catch (OperationCanceledException) { }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"❌ Play error: {ex}");
-                }
-                finally
-                {
-                    _cts.TryRemove(guild.Id, out _);
-                }
+                catch { }
             }, cts.Token);
 
             return;
@@ -221,25 +154,22 @@ public class MusicService
     }
 
     // ===== SKIP =====
+
     public async Task SkipAsync(ulong userId)
     {
         if (_discordClient == null) return;
 
-        foreach (var guild in _discordClient.Guilds)
+        foreach (var g in _discordClient.Guilds)
         {
-            var user =
-                guild.GetUser(userId) ??
-                await _discordClient.Rest.GetGuildUserAsync(guild.Id, userId) as IGuildUser;
-
-            if (user?.VoiceChannel == null) continue;
-
-            if (_cts.TryRemove(guild.Id, out var cts))
+            if (_cts.TryRemove(g.Id, out var cts))
             {
                 cts.Cancel();
                 cts.Dispose();
             }
         }
     }
+
+
 
     public Task ToggleAsync(ulong userId) => SkipAsync(userId);
 
