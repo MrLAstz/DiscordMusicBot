@@ -1,2 +1,8 @@
 [phases.setup]
-nixPkgs = ["dotnet-sdk", "ffmpeg", "libopus", "libsodium"]
+nixPkgs = ["dotnet-sdk_10", "libopus", "libsodium", "ffmpeg"]
+
+[phases.build]
+cmds = ["dotnet publish -c Release -o out"]
+
+[start]
+cmd = "./out/DiscordMusicBot"
