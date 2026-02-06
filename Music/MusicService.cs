@@ -14,7 +14,7 @@ public class MusicService
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
 
-    // ====== สำคัญมาก: แก้ปัญหา libopus บน Linux ======
+    // ====== FIX libopus on Linux / Railway ======
     static MusicService()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -24,12 +24,11 @@ public class MusicService
                 {
                     if (libraryName == "opus" || libraryName == "libopus")
                     {
-                        string baseDir = AppContext.BaseDirectory;
                         string[] paths =
                         {
-                            Path.Combine(baseDir, "libopus.so"),
-                            Path.Combine(baseDir, "opus.so"),
-                            "libopus.so.0" // ใช้ตัวนี้ได้ถ้าติดตั้งจาก apt
+                            "libopus.so.0",
+                            "libopus.so",
+                            "opus.so"
                         };
 
                         foreach (var path in paths)
@@ -43,7 +42,6 @@ public class MusicService
 
                         Console.WriteLine("❌ libopus not found");
                     }
-
                     return IntPtr.Zero;
                 });
         }
@@ -52,7 +50,7 @@ public class MusicService
     public void SetDiscordClient(DiscordSocketClient client)
         => _discordClient = client;
 
-    // ====== Join ======
+    // ====== JOIN ======
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
         if (_discordClient == null) return false;
@@ -69,23 +67,36 @@ public class MusicService
                 return true;
             }
         }
-
         return false;
     }
 
-    public async Task JoinAsync(IVoiceChannel channel)
+    private async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
-        var audioClient = await channel.ConnectAsync();
+        // reuse ถ้ายังต่ออยู่
+        if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
+            existing.ConnectionState == ConnectionState.Connected)
+        {
+            return existing;
+        }
+
+        // ลบ session เก่า
+        _audioClients.TryRemove(channel.Guild.Id, out _);
+
+        Console.WriteLine("🔊 Connecting to voice...");
+        var audioClient = await channel.ConnectAsync(selfDeaf: true);
+
         audioClient.Disconnected += _ =>
         {
-            _audioClients.TryRemove(channel.Guild.Id, out IAudioClient? removed);
+            Console.WriteLine("🔌 Voice disconnected");
+            _audioClients.TryRemove(channel.Guild.Id, out _);
             return Task.CompletedTask;
         };
 
         _audioClients[channel.Guild.Id] = audioClient;
+        return audioClient;
     }
 
-    // ====== Play ======
+    // ====== PLAY ======
     public async Task PlayByUserIdAsync(ulong userId, string url)
     {
         if (_discordClient == null) return;
@@ -108,16 +119,19 @@ public class MusicService
             var cts = new CancellationTokenSource();
             _cts[guild.Id] = cts;
 
-            if (!_audioClients.ContainsKey(guild.Id))
-                await JoinAsync(user.VoiceChannel);
+            var audioClient = await JoinAsync(user.VoiceChannel);
+            if (audioClient == null) return;
 
-            if (!_audioClients.TryGetValue(guild.Id, out var audioClient))
-                return;
+            // รอ websocket พร้อม (สำคัญมากบน Railway)
+            await Task.Delay(500);
 
             _ = Task.Run(async () =>
             {
                 try
                 {
+                    if (audioClient.ConnectionState != ConnectionState.Connected)
+                        return;
+
                     string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
                     Console.WriteLine($"▶ Playing: {streamUrl}");
 
@@ -144,11 +158,10 @@ public class MusicService
                             Console.WriteLine($"[ffmpeg] {err}");
                     });
 
-                    using var discord =
-                        audioClient.CreatePCMStream(
-                            AudioApplication.Music,
-                            bitrate: 96000,
-                            bufferMillis: 200);
+                    using var discord = audioClient.CreatePCMStream(
+                        AudioApplication.Music,
+                        bitrate: 96000,
+                        bufferMillis: 200);
 
                     try
                     {
@@ -176,7 +189,7 @@ public class MusicService
         }
     }
 
-    // ====== Skip ======
+    // ====== SKIP / TOGGLE ======
     public Task ToggleAsync(ulong userId) => SkipAsync(userId);
 
     public async Task SkipAsync(ulong userId)
@@ -199,7 +212,7 @@ public class MusicService
         }
     }
 
-    // ====== Users in voice ======
+    // ====== USERS IN VOICE ======
     public async Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null)
