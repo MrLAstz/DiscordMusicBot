@@ -9,7 +9,7 @@ COPY . .
 RUN dotnet publish -c Release -o /app --no-restore
 
 # ---------- RUNTIME ----------
-FROM mcr.microsoft.com/dotnet/runtime:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
 RUN apt-get update && apt-get install -y \
     libopus0 \
@@ -19,5 +19,8 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY --from=build /app .
+
+# Railway จะ inject PORT มาให้
+ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
 
 ENTRYPOINT ["dotnet", "DiscordMusicBot.dll"]
