@@ -33,6 +33,12 @@ public class MusicService
     public async Task JoinAsync(IVoiceChannel channel)
     {
         var audioClient = await channel.ConnectAsync();
+
+        // เมื่อหลุดจากการเชื่อมต่อ ให้ลบออกจาก list
+        audioClient.Disconnected += async (ex) => {
+            _audioClients.TryRemove(channel.Guild.Id, out _);
+        };
+
         _audioClients[channel.Guild.Id] = audioClient;
     }
 
@@ -67,15 +73,24 @@ public class MusicService
                     {
                         try
                         {
-                            string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
+                            // ตรวจสอบสถานะการเชื่อมต่อก่อน
+                            if (audioClient.ConnectionState != ConnectionState.Connected)
+                            {
+                                Console.WriteLine("[Warning]: AudioClient is not connected, reconnecting...");
+                                await JoinAsync(user.VoiceChannel);
+                                _audioClients.TryGetValue(guild.Id, out audioClient);
+                            }
 
-                            // 2. ปรับจูน FFmpeg Arguments ให้เหมาะกับ Streaming
+                            string streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
+                            Console.WriteLine($"[Info]: Starting FFmpeg for URL: {url}");
+
                             var psi = new ProcessStartInfo
                             {
                                 FileName = "ffmpeg",
                                 Arguments = $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
-                                            $"-i \"{streamUrl}\" -ac 2 -f s16le -ar 48000 -loglevel panic pipe:1",
+                                            $"-i \"{streamUrl}\" -ac 2 -f s16le -ar 48000 -loglevel warning pipe:1", // เปลี่ยนเป็น warning เพื่อดู error
                                 RedirectStandardOutput = true,
+                                RedirectStandardError = true, // เปิดรับ Error จาก FFmpeg
                                 UseShellExecute = false,
                                 CreateNoWindow = true
                             };
@@ -83,12 +98,16 @@ public class MusicService
                             using var process = Process.Start(psi);
                             if (process == null) return;
 
-                            // 3. ใช้ PCM Stream และส่งข้อมูลด้วย Buffer ที่เหมาะสม
+                            // อ่าน Error จาก FFmpeg ออกมาโชว์ใน Logs
+                            _ = Task.Run(async () => {
+                                string error = await process.StandardError.ReadToEndAsync();
+                                if (!string.IsNullOrEmpty(error)) Console.WriteLine($"[FFmpeg Error]: {error}");
+                            });
+
                             using var discordStream = audioClient.CreatePCMStream(AudioApplication.Music);
 
                             try
                             {
-                                // กำหนด buffer size 16KB ช่วยให้สตรีมลื่นขึ้น
                                 await process.StandardOutput.BaseStream.CopyToAsync(discordStream, 16384, newCts.Token);
                             }
                             finally
@@ -97,10 +116,12 @@ public class MusicService
                                 if (!process.HasExited) process.Kill();
                             }
                         }
-                        catch (OperationCanceledException) { }
+                        catch (OperationCanceledException) { Console.WriteLine("[Info]: Playback cancelled."); }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[Playback Error]: {ex.Message}");
+                            // พิมพ์ Error ออกมาดูให้ชัดเจนใน Railway Logs
+                            Console.WriteLine($"[CRITICAL ERROR]: {ex.GetType().Name} - {ex.Message}");
+                            Console.WriteLine($"[StackTrace]: {ex.StackTrace}");
                         }
                         finally
                         {
