@@ -1,14 +1,9 @@
 [phases.setup]
-nixPkgs = ["dotnet-sdk", "libopus", "libsodium", "ffmpeg"]
+nixPkgs = ["dotnet-sdk", "ffmpeg"]
+aptPkgs = ["libopus0", "libsodium23", "libopus-dev", "libsodium-dev"]
 
 [phases.build]
-cmds = [
-    "dotnet publish -c Release -o out",
-    "cp /usr/lib/x86_64-linux-gnu/libopus.so.0 ./out/opus.so || cp /usr/lib/libopus.so.0 ./out/opus.so || true",
-    "cp /usr/lib/x86_64-linux-gnu/libsodium.so.23 ./out/sodium.so || cp /usr/lib/libsodium.so.23 ./out/sodium.so || true",
-    "cp ./out/opus.so ./out/libopus.so || true",
-    "cp ./out/sodium.so ./out/libsodium.so || true"
-]
+cmds = ["dotnet publish -c Release -o out"]
 
 [start]
 cmd = "./out/DiscordMusicBot"

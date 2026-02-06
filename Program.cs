@@ -10,9 +10,10 @@ class Program
         // โหลด Library เสียงสำหรับ Linux บน Railway
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
+            // ไม่ต้องระบุ Path เดี๋ยว OS หาเองใน /usr/lib
             NativeLibrary.TryLoad("libopus", out _);
             NativeLibrary.TryLoad("libsodium", out _);
-            Console.WriteLine("🐧 Audio libraries pre-loaded for Linux.");
+            Console.WriteLine("🐧 Audio libraries initialized.");
         }
 
         var token = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
