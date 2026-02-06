@@ -74,17 +74,15 @@ public class MusicService
         return false;
     }
 
-    // ====== JOIN VOICE ======
+    // ====== JOIN VOICE (มีแค่อันเดียว) ======
     public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
-        // reuse ถ้ายังต่ออยู่
         if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
             existing.ConnectionState == ConnectionState.Connected)
         {
             return existing;
         }
 
-        // ลบ session เก่า (กัน 4006)
         _audioClients.TryRemove(channel.Guild.Id, out _);
 
         Console.WriteLine("🔊 Connecting to voice...");
@@ -100,33 +98,6 @@ public class MusicService
         _audioClients[channel.Guild.Id] = audioClient;
         return audioClient;
     }
-
-    public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
-    {
-        // reuse ถ้ายังต่ออยู่
-        if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
-            existing.ConnectionState == ConnectionState.Connected)
-        {
-            return existing;
-        }
-
-        // ❌ ลบ session เก่า (ตรงนี้แหละที่เคยพัง)
-        _audioClients.TryRemove(channel.Guild.Id, out _);
-
-        Console.WriteLine("🔊 Connecting to voice...");
-        var audioClient = await channel.ConnectAsync(selfDeaf: true);
-
-        audioClient.Disconnected += _ =>
-        {
-            Console.WriteLine("🔌 Voice disconnected");
-            _audioClients.TryRemove(channel.Guild.Id, out _);
-            return Task.CompletedTask;
-        };
-
-        _audioClients[channel.Guild.Id] = audioClient;
-        return audioClient;
-    }
-
 
     // ====== PLAY ======
     public async Task PlayByUserIdAsync(ulong userId, string url)
@@ -141,7 +112,6 @@ public class MusicService
 
             if (user?.VoiceChannel == null) continue;
 
-            // stop เพลงเก่า
             if (_cts.TryRemove(guild.Id, out var oldCts))
             {
                 oldCts.Cancel();
@@ -154,8 +124,7 @@ public class MusicService
             var audioClient = await JoinAsync(user.VoiceChannel);
             if (audioClient == null) return;
 
-            // รอให้ voice websocket พร้อม (สำคัญบน Railway)
-            await Task.Delay(500);
+            await Task.Delay(500); // รอ voice websocket พร้อม
 
             _ = Task.Run(async () =>
             {
@@ -222,10 +191,7 @@ public class MusicService
         }
     }
 
-    // ====== SKIP / TOGGLE ======
-    public Task ToggleAsync(ulong userId)
-        => SkipAsync(userId);
-
+    // ====== SKIP ======
     public async Task SkipAsync(ulong userId)
     {
         if (_discordClient == null) return;
@@ -246,14 +212,13 @@ public class MusicService
         }
     }
 
+    public Task ToggleAsync(ulong userId) => SkipAsync(userId);
+
     // ====== USERS IN VOICE ======
     public Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null)
-        {
-            return Task.FromResult<object>(
-                new { guild = "offline", users = new List<object>() });
-        }
+            return Task.FromResult<object>(new { guild = "offline", users = new List<object>() });
 
         SocketGuildUser? user = null;
         SocketGuild? guild = null;
@@ -269,10 +234,7 @@ public class MusicService
         }
 
         if (user?.VoiceChannel == null || guild == null)
-        {
-            return Task.FromResult<object>(
-                new { guild = "not in voice", users = new List<object>() });
-        }
+            return Task.FromResult<object>(new { guild = "not in voice", users = new List<object>() });
 
         var channel = user.VoiceChannel;
 
