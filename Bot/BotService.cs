@@ -1,7 +1,6 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using DiscordMusicBot.Music;
-using Discord.Net.Providers.UDP; // ✅ 1. เพิ่ม using ตัวนี้
 
 namespace DiscordMusicBot.Bot;
 
@@ -23,10 +22,8 @@ public class BotService
                              GatewayIntents.GuildMembers |
                              GatewayIntents.GuildPresences |
                              GatewayIntents.MessageContent |
-                             GatewayIntents.GuildVoiceStates, // ✅ 2. เพิ่ม Intent เรื่องสถานะเสียง
-            AlwaysDownloadUsers = true,
-            // ✅ 3. เพิ่มบรรทัดนี้สำคัญมากสำหรับการแก้ Error libopus บน Linux
-            UdpClientProvider = UdpClientProvider.Create()
+                             GatewayIntents.GuildVoiceStates,
+            AlwaysDownloadUsers = true
         };
 
         _client = new DiscordSocketClient(config);
@@ -35,7 +32,6 @@ public class BotService
         _handler = new CommandHandler(_client, _music);
     }
 
-    // ... ส่วนที่เหลือเหมือนเดิม ...
     public async Task StartAsync()
     {
         _client.Log += LogAsync;
