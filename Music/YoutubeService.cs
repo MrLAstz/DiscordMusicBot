@@ -69,4 +69,17 @@ public class YoutubeService
         if (views >= 1_000) return $"{views / 1_000D:F1}K views";
         return $"{views} views";
     }
+
+    public async Task<string> ResolveVideoUrlAsync(string input)
+    {
+        if (input.Contains("youtube.com") || input.Contains("youtu.be"))
+            return input;
+
+        await foreach (var v in _youtube.Search.GetVideosAsync(input))
+            return v.Url;
+
+        throw new Exception("❌ ไม่พบวิดีโอ");
+    }
+
+
 }

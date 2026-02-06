@@ -16,7 +16,7 @@ public class MusicService
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
 
-    // ===== FIX libopus (Linux / Railway) =====
+    // ===== FIX libopus (Linux / Docker / Railway) =====
     static MusicService()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -38,7 +38,7 @@ public class MusicService
     public void SetDiscordClient(DiscordSocketClient client)
         => _discordClient = client;
 
-    // ===== JOIN =====
+    // ===== JOIN BY USER =====
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
         if (_discordClient == null) return false;
@@ -67,10 +67,12 @@ public class MusicService
 
             _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
 
+            Console.WriteLine("🔊 Connecting voice...");
             var client = await channel.ConnectAsync(selfDeaf: true);
 
             client.Disconnected += _ =>
             {
+                Console.WriteLine("🔌 Voice disconnected");
                 _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
                 return Task.CompletedTask;
             };
@@ -85,7 +87,7 @@ public class MusicService
     }
 
     // ===== PLAY =====
-    public async Task PlayByUserIdAsync(ulong userId, string url)
+    public async Task PlayByUserIdAsync(ulong userId, string input)
     {
         if (_discordClient == null) return;
 
@@ -94,6 +96,7 @@ public class MusicService
             var u = g.GetUser(userId);
             if (u?.VoiceChannel == null) continue;
 
+            // stop old
             if (_cts.TryRemove(g.Id, out var old))
             {
                 old.Cancel();
@@ -106,31 +109,70 @@ public class MusicService
             var audio = await JoinAsync(u.VoiceChannel);
             if (audio == null) return;
 
+            if (!await WaitForVoiceReady(audio))
+            {
+                Console.WriteLine("❌ Voice not ready");
+                return;
+            }
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var streamUrl = await _youtube.GetAudioOnlyUrlAsync(url);
+                    // 🔥 ใช้ VIDEO URL เท่านั้น (ให้ ffmpeg จัดการเอง)
+                    var videoUrl = await _youtube.ResolveVideoUrlAsync(input);
+
+                    Console.WriteLine($"▶ Playing: {videoUrl}");
 
                     var psi = new ProcessStartInfo
                     {
                         FileName = "ffmpeg",
                         Arguments =
                             $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
-                            $"-i \"{streamUrl}\" -ac 2 -ar 48000 -f s16le pipe:1",
+                            $"-i \"{videoUrl}\" " +
+                            "-ac 2 -ar 48000 -f s16le -loglevel error pipe:1",
                         RedirectStandardOutput = true,
-                        UseShellExecute = false
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
                     };
 
-                    using var ffmpeg = Process.Start(psi)!;
-                    using var discord = audio.CreatePCMStream(AudioApplication.Music);
+                    using var ffmpeg = Process.Start(psi);
+                    if (ffmpeg == null) return;
 
-                    await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
-                        discord, 81920, cts.Token);
+                    _ = Task.Run(async () =>
+                    {
+                        var err = await ffmpeg.StandardError.ReadToEndAsync();
+                        if (!string.IsNullOrWhiteSpace(err))
+                            Console.WriteLine($"[ffmpeg] {err}");
+                    });
 
-                    await discord.FlushAsync();
+                    using var discord = audio.CreatePCMStream(
+                        AudioApplication.Music,
+                        bitrate: 96000,
+                        bufferMillis: 200);
+
+                    try
+                    {
+                        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
+                            discord, 32768, cts.Token);
+                    }
+                    finally
+                    {
+                        await discord.FlushAsync();
+                        if (!ffmpeg.HasExited)
+                            ffmpeg.Kill();
+                    }
                 }
-                catch { }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Play error: {ex}");
+                }
+                finally
+                {
+                    _cts.TryRemove(g.Id, out _);
+                }
             }, cts.Token);
 
             return;
@@ -140,7 +182,6 @@ public class MusicService
     private async Task<bool> WaitForVoiceReady(IAudioClient client, int timeoutMs = 8000)
     {
         var sw = Stopwatch.StartNew();
-
         while (sw.ElapsedMilliseconds < timeoutMs)
         {
             if (client.ConnectionState == ConnectionState.Connected)
@@ -148,13 +189,10 @@ public class MusicService
 
             await Task.Delay(200);
         }
-
-        Console.WriteLine("❌ Voice not ready (timeout)");
         return false;
     }
 
     // ===== SKIP =====
-
     public async Task SkipAsync(ulong userId)
     {
         if (_discordClient == null) return;
@@ -168,8 +206,6 @@ public class MusicService
             }
         }
     }
-
-
 
     public Task ToggleAsync(ulong userId) => SkipAsync(userId);
 
