@@ -3,7 +3,9 @@ nixPkgs = ["dotnet-sdk", "ffmpeg", "libopus", "libsodium"]
 
 [phases.build]
 cmds = [
-    "dotnet publish -c Release -o out"
+    "dotnet publish -c Release -o out",
+    "ln -s /usr/lib/x86_64-linux-gnu/libopus.so.1 ./out/opus.so || ln -s /usr/lib/libopus.so ./out/opus.so || true",
+    "ln -s /usr/lib/x86_64-linux-gnu/libsodium.so.23 ./out/sodium.so || ln -s /usr/lib/libsodium.so ./out/sodium.so || true"
 ]
 
 [start]
