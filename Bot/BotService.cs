@@ -10,6 +10,7 @@ public class BotService
     private readonly string _token;
     private readonly MusicService _music;
     private readonly CommandHandler _handler;
+
     private readonly TaskCompletionSource<bool> _readyTcs = new();
     public Task ReadyTask => _readyTcs.Task;
 
@@ -20,17 +21,22 @@ public class BotService
 
         var config = new DiscordSocketConfig
         {
-            GatewayIntents = GatewayIntents.AllUnprivileged |
-                             GatewayIntents.GuildMembers |
-                             GatewayIntents.GuildPresences |
-                             GatewayIntents.MessageContent |
-                             GatewayIntents.GuildVoiceStates,
-            AlwaysDownloadUsers = true
+            GatewayIntents =
+                GatewayIntents.Guilds |
+                GatewayIntents.GuildMembers |
+                GatewayIntents.GuildPresences |
+                GatewayIntents.GuildVoiceStates |
+                GatewayIntents.MessageContent,
+
+            AlwaysDownloadUsers = true,
+            LogGatewayIntentWarnings = false
         };
 
         _client = new DiscordSocketClient(config);
+
+        // 🔥 ผูก MusicService
         _music.SetDiscordClient(_client);
-        _music.SetReadyTask(_readyTcs.Task); // 🔥 สำคัญ
+        _music.SetReadyTask(_readyTcs.Task);
 
         _handler = new CommandHandler(_client, _music);
     }
@@ -49,15 +55,35 @@ public class BotService
 
     private async Task OnReadyAsync()
     {
+        // กัน Ready ยิงซ้ำ (Discord.Net ชอบยิงมากกว่า 1 ครั้ง)
+        if (_readyTcs.Task.IsCompleted)
+            return;
+
         Console.WriteLine("🤖 Discord READY");
 
         var commands = new List<SlashCommandBuilder>
         {
-            new SlashCommandBuilder().WithName("help").WithDescription("ดูเมนูคำสั่งทั้งหมดของบอท"),
-            new SlashCommandBuilder().WithName("join").WithDescription("ให้บอทเข้าห้องเสียงที่คุณอยู่"),
-            new SlashCommandBuilder().WithName("status").WithDescription("เช็คสถานะการเชื่อมต่อและสมาชิกในห้อง"),
-            new SlashCommandBuilder().WithName("play").WithDescription("เล่นเพลงจาก YouTube")
-                .AddOption("url", ApplicationCommandOptionType.String, "วางลิงก์ YouTube ที่นี่", isRequired: true)
+            new SlashCommandBuilder()
+                .WithName("help")
+                .WithDescription("ดูเมนูคำสั่งทั้งหมดของบอท"),
+
+            new SlashCommandBuilder()
+                .WithName("join")
+                .WithDescription("ให้บอทเข้าห้องเสียงที่คุณอยู่"),
+
+            new SlashCommandBuilder()
+                .WithName("status")
+                .WithDescription("เช็คสถานะการเชื่อมต่อและสมาชิกในห้อง"),
+
+            new SlashCommandBuilder()
+                .WithName("play")
+                .WithDescription("เล่นเพลงจาก YouTube")
+                .AddOption(
+                    name: "url",
+                    type: ApplicationCommandOptionType.String,
+                    description: "วางลิงก์ YouTube ที่นี่",
+                    isRequired: true
+                )
         };
 
         try
@@ -69,10 +95,11 @@ public class BotService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Slash command error: {ex}");
+            Console.WriteLine("❌ Slash command error");
+            Console.WriteLine(ex);
         }
 
-        // 🔥 ปลดล็อก READY
+        // 🔓 ปลด READY ให้ MusicService ใช้งานได้
         _readyTcs.TrySetResult(true);
     }
 
