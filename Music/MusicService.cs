@@ -104,7 +104,7 @@ public class MusicService
             var cts = new CancellationTokenSource();
             _cts[g.Id] = cts;
 
-            var audio = await JoinAsync(u.VoiceChannel);
+            var audio = await JoinByUserIdAsync(u.VoiceChannel);
             if (audio == null) return;
 
             if (!await WaitForVoiceReady(audio))
