@@ -57,17 +57,17 @@ public static class WebServer
             return Results.Ok(new { guild = "กรุณา Login", users = new List<object>() });
         });
 
-        app.MapPost("/join", async (HttpContext context, MusicService musicService) =>
-        {
-            string? userIdStr = context.Request.Query["userId"];
-            if (ulong.TryParse(userIdStr, out ulong userId))
-            {
-                bool success = await musicService.JoinByUserIdAsync(userId);
-                return success ? Results.Ok(new { message = "Joined user's channel" })
-                               : Results.BadRequest(new { message = "User not found" });
-            }
-            return Results.BadRequest(new { message = "User ID is required" });
-        });
+        //app.MapPost("/join", async (HttpContext context, MusicService musicService) =>
+        //{
+        //    string? userIdStr = context.Request.Query["userId"];
+        //    if (ulong.TryParse(userIdStr, out ulong userId))
+        //    {
+        //        bool success = await musicService.JoinByUserIdAsync(userId);
+        //        return success ? Results.Ok(new { message = "Joined user's channel" })
+        //                       : Results.BadRequest(new { message = "User not found" });
+        //    }
+        //    return Results.BadRequest(new { message = "User ID is required" });
+        //});
 
         app.MapPost("/play", async (HttpContext context, MusicService musicService) =>
         {
