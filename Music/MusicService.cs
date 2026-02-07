@@ -80,7 +80,7 @@ public class MusicService
                 return existing;
             }
 
-            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient _))
+            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient old))
             {
                 try
                 {
@@ -90,6 +90,7 @@ public class MusicService
                 }
                 catch { }
             }
+
 
             Console.WriteLine("🔊 Connecting voice...");
 
@@ -115,7 +116,16 @@ public class MusicService
             client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
+
+                if (_audioClients.TryRemove(channel.Guild.Id, out var removed))
+                {
+                    try
+                    {
+                        removed.Dispose();
+                    }
+                    catch { }
+                }
+
                 return Task.CompletedTask;
             };
 
