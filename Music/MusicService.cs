@@ -63,34 +63,41 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
+            // 1️⃣ ถ้ามี client ที่ยังใช้ได้ → ใช้ต่อ
+            if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient existing) &&
                 existing.ConnectionState == ConnectionState.Connected)
             {
                 return existing;
             }
 
-            // clear old session
+            // 2️⃣ ปิด session เก่าแบบ "รอจริง"
             if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old))
             {
                 try
                 {
                     await old.StopAsync();
+                    await Task.Delay(300); // สำคัญมาก
                     old.Dispose();
                 }
                 catch { }
             }
 
             Console.WriteLine("🔊 Connecting voice...");
-            var client = await channel.ConnectAsync(selfDeaf: true);
 
-            // 🔥 กัน session expired (4006)
-            await Task.Delay(500);
+            // 3️⃣ Connect แบบ safe
+            var client = await channel.ConnectAsync(
+                selfDeaf: true,
+                selfMute: false
+            );
 
-            client.Disconnected += _ =>
+            // 4️⃣ รอ Discord sync voice state
+            await Task.Delay(800);
+
+            client.Disconnected += async _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old);
-                return Task.CompletedTask;
+                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient? _);
+                await Task.CompletedTask;
             };
 
             _audioClients[channel.Guild.Id] = client;
@@ -122,9 +129,30 @@ public class MusicService
             var cts = new CancellationTokenSource();
             _cts[g.Id] = cts;
 
-            var audio = await JoinAsync(u.VoiceChannel);
-            if (audio == null) return;
+            // 🔁 retry join voice (กัน 4006)
+            IAudioClient? audio = null;
+            for (int i = 0; i < 3; i++)
+            {
+                audio = await JoinAsync(u.VoiceChannel);
 
+                if (audio != null &&
+                    audio.ConnectionState == ConnectionState.Connected)
+                {
+                    break;
+                }
+
+                Console.WriteLine($"⏳ Voice retry {i + 1}/3");
+                await Task.Delay(1000);
+            }
+
+            if (audio == null ||
+                audio.ConnectionState != ConnectionState.Connected)
+            {
+                Console.WriteLine("❌ Cannot connect voice");
+                return;
+            }
+
+            // ✅ รอ voice ready แค่ครั้งเดียว
             if (!await WaitForVoiceReady(audio))
             {
                 Console.WriteLine("❌ Voice not ready");
@@ -135,7 +163,6 @@ public class MusicService
             {
                 try
                 {
-                    // 🔥 ใช้ VIDEO URL เท่านั้น (ให้ ffmpeg จัดการเอง)
                     var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
 
                     var psi = new ProcessStartInfo
@@ -150,7 +177,6 @@ public class MusicService
                         UseShellExecute = false,
                         CreateNoWindow = true
                     };
-
 
                     using var ffmpeg = Process.Start(psi);
                     if (ffmpeg == null) return;
@@ -193,6 +219,7 @@ public class MusicService
             return;
         }
     }
+
 
     private async Task<bool> WaitForVoiceReady(IAudioClient client, int timeoutMs = 8000)
     {
