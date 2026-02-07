@@ -62,7 +62,7 @@ public class YoutubeService
         if (audio == null)
             throw new Exception("❌ ไม่พบ audio stream");
 
-        return await audio.GetUrlAsync();
+        return await _youtube.Videos.Streams.GetUrlAsync(audio);
     }
 
     private static string FormatViews(long views)
