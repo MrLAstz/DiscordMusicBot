@@ -1,8 +1,8 @@
-namespace DiscordMusicBot.Music.Models;
+namespace DiscordMusicBot.Music;
 
 public class MusicTrack
 {
-    public string VideoId { get; init; } = "";
-    public string Title { get; init; } = "";
+    public string Input { get; init; } = "";
     public string RequestedBy { get; init; } = "";
+    public string Source { get; init; } = ""; // web / discord
 }

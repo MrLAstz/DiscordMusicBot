@@ -119,30 +119,25 @@ public class CommandHandler
                         if (channel == null)
                         {
                             await command.RespondAsync(
-                                "❌ เข้าห้องเสียงก่อนถึงจะฟังเพลงได้นะ",
+                                "❌ เข้าห้องเสียงก่อน",
                                 ephemeral: true);
                             return;
                         }
 
                         var input = command.Data.Options
-                            .FirstOrDefault()?.Value?.ToString();
+                            .First().Value.ToString()!;
 
-                        if (string.IsNullOrWhiteSpace(input))
-                        {
-                            await command.RespondAsync("❌ กรุณาระบุลิงก์หรือชื่อเพลง");
-                            return;
-                        }
+                        await command.RespondAsync($"🎵 เพิ่มเพลงเข้าคิว: {input}");
 
-                        // 👇 ตรงนี้คือของจริง
                         await _music.EnqueueAsync(
-                            command.User.Id,        // userId
-                            input,                  // input (url / keyword)
-                            command.User.Username   // คนที่สั่ง
+                            user.Id,
+                            input,
+                            user.Username
                         );
 
-                        await command.RespondAsync($"🎶 เพิ่มเข้า queue แล้ว: {input}");
                         break;
                     }
+
 
                 case "status":
                     {

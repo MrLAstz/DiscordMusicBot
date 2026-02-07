@@ -62,67 +62,59 @@ public class MusicService
     public void SetReadyTask(Task readyTask) => _readyTask = readyTask;
     public void SetDiscordClient(DiscordSocketClient client) => _discordClient = client;
 
-    public async Task EnqueueAsync(
-    ulong userId,
-    string input,
-    string requestedBy
-)
+    public async Task EnqueueAsync(ulong userId, string input, string requestedBy)
     {
         if (_discordClient == null) return;
 
-        foreach (var g in _discordClient.Guilds)
+        foreach (var guild in _discordClient.Guilds)
         {
-            var user = g.GetUser(userId);
+            var user = guild.GetUser(userId);
             if (user?.VoiceChannel == null) continue;
 
-            var videoId = await _youtube.ResolveVideoIdAsync(input);
+            var queue = _queues.GetOrAdd(guild.Id, _ => new MusicQueue());
 
-            var track = new MusicTrack
+            queue.Enqueue(new MusicTrack
             {
-                VideoId = videoId,
-                Title = videoId,
-                RequestedBy = requestedBy
-            };
+                Input = input,
+                RequestedBy = requestedBy,
+                Source = "shared"
+            });
 
-            GetQueue(g.Id).Enqueue(track);
-
-            // ถ้ายังไม่เล่น → เริ่ม loop
-            if (!_cts.ContainsKey(g.Id))
-                _ = PlayQueueAsync(g, user.VoiceChannel);
+            // ถ้ายังไม่กำลังเล่น → start player
+            if (!_cts.ContainsKey(guild.Id))
+            {
+                _ = PlayQueueAsync(guild.Id, user.VoiceChannel);
+            }
 
             return;
         }
     }
 
-    private async Task PlayQueueAsync(
-    SocketGuild guild,
-    IVoiceChannel channel
-)
+
+    private async Task PlayQueueAsync(ulong guildId, IVoiceChannel channel)
     {
-        var queue = GetQueue(guild.Id);
-
         var cts = new CancellationTokenSource();
-        _cts[guild.Id] = cts;
-
-        var audio = await JoinAsync(channel);
-        if (audio == null) return;
+        _cts[guildId] = cts;
 
         try
         {
+            var audio = await JoinAsync(channel);
+            if (audio == null) return;
+
+            var queue = _queues[guildId];
+
             while (!cts.IsCancellationRequested &&
                    queue.TryDequeue(out var track))
             {
-                var audioUrl =
-                    await _youtube.GetAudioOnlyUrlAsync(track.VideoId);
-
-                await PlayFfmpegAsync(audio, audioUrl, cts.Token);
+                await PlayFfmpegAsync(audio, track!, cts.Token);
             }
         }
         finally
         {
-            _cts.TryRemove(guild.Id, out _);
+            _cts.TryRemove(guildId, out _);
         }
     }
+
 
 
     // ===== JOIN BY USER ID =====
@@ -214,21 +206,21 @@ public class MusicService
     }
 
     private async Task PlayFfmpegAsync(
-    IAudioClient audio,
-    string audioUrl,
-    CancellationToken token
-)
+        IAudioClient audio,
+        MusicTrack track,
+        CancellationToken token)
     {
+        var videoId = await _youtube.ResolveVideoIdAsync(track.Input);
+        var audioUrl = await _youtube.GetAudioOnlyUrlAsync(videoId);
+
         var psi = new ProcessStartInfo
         {
             FileName = "ffmpeg",
             Arguments =
                 "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
-                "-headers \"User-Agent: Mozilla/5.0\r\n\" " +
                 $"-i \"{audioUrl}\" " +
                 "-vn -ac 2 -ar 48000 -f s16le pipe:1",
             RedirectStandardOutput = true,
-            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -236,26 +228,15 @@ public class MusicService
         using var ffmpeg = Process.Start(psi);
         if (ffmpeg == null) return;
 
-        _ = Task.Run(async () =>
-        {
-            while (!ffmpeg.StandardError.EndOfStream)
-            {
-                var line = await ffmpeg.StandardError.ReadLineAsync();
-                if (!string.IsNullOrWhiteSpace(line))
-                    Console.WriteLine("[ffmpeg] " + line);
-            }
-        });
-
         using var discord = audio.CreatePCMStream(AudioApplication.Music);
         await audio.SetSpeakingAsync(true);
 
-        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
-            discord, 32768, token
-        );
+        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(discord, token);
 
         await discord.FlushAsync();
         await audio.SetSpeakingAsync(false);
     }
+
 
 
     // ===== PLAY =====

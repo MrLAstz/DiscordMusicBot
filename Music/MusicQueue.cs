@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using DiscordMusicBot.Music.Models;
 
 namespace DiscordMusicBot.Music;
 
@@ -13,11 +12,6 @@ public class MusicQueue
     public bool TryDequeue(out MusicTrack? track)
         => _queue.TryDequeue(out track);
 
-    public IReadOnlyList<MusicTrack> List()
+    public IReadOnlyList<MusicTrack> Snapshot()
         => _queue.ToList();
-
-    public void Clear()
-    {
-        while (_queue.TryDequeue(out _)) { }
-    }
 }
