@@ -127,132 +127,112 @@ public class MusicService
     // ===== PLAY =====
     public async Task PlayByUserIdAsync(ulong userId, string input)
     {
-        await _readyTask;
-
-        if (_discordClient == null) return;
-
-        foreach (var g in _discordClient.Guilds)
+        try
         {
-            var u = g.GetUser(userId);
-            if (u?.VoiceChannel == null) continue;
+            if (_discordClient == null) return;
 
-            // stop old
-            if (_cts.TryRemove(g.Id, out var old))
+            foreach (var g in _discordClient.Guilds)
             {
-                old.Cancel();
-                old.Dispose();
-            }
+                var u = g.GetUser(userId);
+                if (u?.VoiceChannel == null) continue;
 
-            var cts = new CancellationTokenSource();
-            _cts[g.Id] = cts;
-
-            // 🔁 retry join voice (กัน 4006)
-            IAudioClient? audio = null;
-            for (int i = 0; i < 3; i++)
-            {
-                audio = await JoinAsync(u.VoiceChannel);
-
-                if (audio != null &&
-                    audio.ConnectionState == ConnectionState.Connected)
+                // stop old
+                if (_cts.TryRemove(g.Id, out var old))
                 {
-                    break;
+                    old.Cancel();
+                    old.Dispose();
                 }
 
-                Console.WriteLine($"⏳ Voice retry {i + 1}/3");
-                await Task.Delay(1000);
-            }
+                var cts = new CancellationTokenSource();
+                _cts[g.Id] = cts;
 
-            if (audio == null ||
-                audio.ConnectionState != ConnectionState.Connected)
-            {
-                Console.WriteLine("❌ Cannot connect voice");
-                return;
-            }
+                IAudioClient? audio = null;
 
-            // ✅ รอ voice ready แค่ครั้งเดียว
-            if (!await WaitForVoiceReady(audio))
-            {
-                Console.WriteLine("❌ Voice not ready");
-                return;
-            }
-
-            _ = Task.Run(async () =>
-            {
-                try
+                for (int i = 0; i < 3; i++)
                 {
-                    var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
+                    audio = await JoinAsync(u.VoiceChannel);
 
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = "ffmpeg",
-                        Arguments =
-                            "-hide_banner -loglevel error " +
-                            "-i \"" + audioUrl + "\" " +
-                            "-vn -ac 2 -ar 48000 -f s16le pipe:1",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
+                    if (audio?.ConnectionState == ConnectionState.Connected)
+                        break;
 
-                    using var ffmpeg = Process.Start(psi);
-                    if (ffmpeg == null) return;
+                    Console.WriteLine($"⏳ Voice retry {i + 1}/3");
+                    await Task.Delay(1000);
+                }
 
-                    using var discord = audio.CreatePCMStream(
-                        AudioApplication.Music,
-                        bitrate: 128000,
-                        bufferMillis: 200
-                    );
+                if (audio == null || audio.ConnectionState != ConnectionState.Connected)
+                {
+                    Console.WriteLine("❌ Cannot connect voice");
+                    return;
+                }
 
-                    // 🔍 DEBUG: ตรวจว่า ffmpeg มีเสียงออกจริงไหม
-                    var probeBuffer = new byte[4096];
+                if (!await WaitForVoiceReady(audio))
+                {
+                    Console.WriteLine("❌ Voice not ready");
+                    return;
+                }
 
-                    int bytesRead = await ffmpeg.StandardOutput.BaseStream
-                        .ReadAsync(probeBuffer.AsMemory(0, probeBuffer.Length), cts.Token);
-
-                    Console.WriteLine($"🎵 ffmpeg bytes: {bytesRead}");
-
-                    if (bytesRead <= 0)
-                    {
-                        Console.WriteLine("❌ ffmpeg ไม่มี audio output");
-                        return;
-                    }
-
-                    // เขียนเสียงก้อนแรกเข้า Discord
-                    await discord.WriteAsync(
-                        probeBuffer.AsMemory(0, bytesRead),
-                        cts.Token
-                    );
-
-                    // ▶️ stream ต่อปกติ
+                _ = Task.Run(async () =>
+                {
                     try
                     {
+                        Console.WriteLine("🎵 Resolving audio url...");
+                        var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
+                        Console.WriteLine($"✅ Audio URL OK");
+
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = "ffmpeg",
+                            Arguments =
+                                "-hide_banner -loglevel error " +
+                                $"-i \"{audioUrl}\" " +
+                                "-vn -ac 2 -ar 48000 -f s16le pipe:1",
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+
+                        using var ffmpeg = Process.Start(psi);
+                        if (ffmpeg == null)
+                        {
+                            Console.WriteLine("❌ ffmpeg start failed");
+                            return;
+                        }
+
+                        using var discord = audio.CreatePCMStream(
+                            AudioApplication.Music,
+                            bitrate: 128000,
+                            bufferMillis: 200
+                        );
+
                         await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
                             discord, 32768, cts.Token
                         );
+
+                        await discord.FlushAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("❌ PLAY TASK ERROR");
+                        Console.WriteLine(ex);
                     }
                     finally
                     {
-                        await discord.FlushAsync();
-                        if (!ffmpeg.HasExited)
-                            ffmpeg.Kill();
+                        _cts.TryRemove(g.Id, out _);
                     }
+                }, cts.Token);
 
-                }
-                catch (OperationCanceledException) { }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"❌ Play error: {ex}");
-                }
-                finally
-                {
-                    _cts.TryRemove(g.Id, out _);
-                }
-            }, cts.Token);
-
-            return;
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("❌ PlayByUserIdAsync ERROR");
+            Console.WriteLine(ex);
+            throw; // สำคัญ: ให้ ASP.NET log stacktrace เต็ม
         }
     }
+
 
 
     private async Task<bool> WaitForVoiceReady(IAudioClient client, int timeoutMs = 8000)
