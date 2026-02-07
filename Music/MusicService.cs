@@ -229,6 +229,13 @@ public class MusicService
         return Task.CompletedTask;
     }
 
+    // ===== TOGGLE (PLAY / STOP) =====
+    public async Task ToggleAsync(ulong userId)
+    {
+        await SkipAsync(userId);
+    }
+
+
     // ===== USERS IN VOICE =====
     public async Task<object> GetUsersInVoice(ulong userId)
     {
