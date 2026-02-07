@@ -124,17 +124,23 @@ public class CommandHandler
                             return;
                         }
 
-                        var url = command.Data.Options
+                        var input = command.Data.Options
                             .FirstOrDefault()?.Value?.ToString();
 
-                        if (string.IsNullOrWhiteSpace(url))
+                        if (string.IsNullOrWhiteSpace(input))
                         {
                             await command.RespondAsync("❌ กรุณาระบุลิงก์หรือชื่อเพลง");
                             return;
                         }
 
-                        await command.RespondAsync($"🎵 กำลังเริ่มเล่นเพลง: {url}");
-                        await _music.EnqueueAsync(userId, input, ctx.User.Username);
+                        // 👇 ตรงนี้คือของจริง
+                        await _music.EnqueueAsync(
+                            command.User.Id,        // userId
+                            input,                  // input (url / keyword)
+                            command.User.Username   // คนที่สั่ง
+                        );
+
+                        await command.RespondAsync($"🎶 เพิ่มเข้า queue แล้ว: {input}");
                         break;
                     }
 

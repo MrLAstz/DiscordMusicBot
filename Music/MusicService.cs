@@ -4,7 +4,7 @@ using Discord.WebSocket;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-
+using DiscordMusicBot.Music.Models;
 namespace DiscordMusicBot.Music;
 
 /// <summary>
@@ -212,6 +212,51 @@ public class MusicService
             _joinLock.Release();
         }
     }
+
+    private async Task PlayFfmpegAsync(
+    IAudioClient audio,
+    string audioUrl,
+    CancellationToken token
+)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "ffmpeg",
+            Arguments =
+                "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
+                "-headers \"User-Agent: Mozilla/5.0\r\n\" " +
+                $"-i \"{audioUrl}\" " +
+                "-vn -ac 2 -ar 48000 -f s16le pipe:1",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var ffmpeg = Process.Start(psi);
+        if (ffmpeg == null) return;
+
+        _ = Task.Run(async () =>
+        {
+            while (!ffmpeg.StandardError.EndOfStream)
+            {
+                var line = await ffmpeg.StandardError.ReadLineAsync();
+                if (!string.IsNullOrWhiteSpace(line))
+                    Console.WriteLine("[ffmpeg] " + line);
+            }
+        });
+
+        using var discord = audio.CreatePCMStream(AudioApplication.Music);
+        await audio.SetSpeakingAsync(true);
+
+        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
+            discord, 32768, token
+        );
+
+        await discord.FlushAsync();
+        await audio.SetSpeakingAsync(false);
+    }
+
 
     // ===== PLAY =====
     // ▶️ เล่นเพลงจาก keyword หรือ YouTube URL
