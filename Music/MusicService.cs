@@ -39,7 +39,7 @@ public class MusicService
         => _discordClient = client;
 
     // ===== JOIN BY USER =====
-    public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
+    public async Task<IAudioClient?> JoinByUserIdAsync(IVoiceChannel channel)
     {
         await _joinLock.WaitAsync();
         try
