@@ -194,13 +194,14 @@ public class MusicService
                     {
                         Console.WriteLine("🎵 Resolving audio url...");
                         var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
-                        Console.WriteLine($"✅ Audio URL OK");
+                        Console.WriteLine("✅ Audio URL OK");
 
                         var psi = new ProcessStartInfo
                         {
                             FileName = "ffmpeg",
                             Arguments =
-                                "-hide_banner -loglevel error " +
+                                "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
+                                "-headers \"User-Agent: Mozilla/5.0\r\n\" " +
                                 $"-i \"{audioUrl}\" " +
                                 "-vn -ac 2 -ar 48000 -f s16le pipe:1",
                             RedirectStandardOutput = true,
@@ -216,6 +217,21 @@ public class MusicService
                             return;
                         }
 
+                        // 🔥🔥🔥 LOG FFmpeg STDERR (สำคัญมาก)
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                while (!ffmpeg.StandardError.EndOfStream)
+                                {
+                                    var line = await ffmpeg.StandardError.ReadLineAsync();
+                                    if (!string.IsNullOrWhiteSpace(line))
+                                        Console.WriteLine("[ffmpeg] " + line);
+                                }
+                            }
+                            catch { }
+                        });
+
                         using var discord = audio.CreatePCMStream(
                             AudioApplication.Music,
                             bitrate: 128000,
@@ -227,6 +243,10 @@ public class MusicService
                         );
 
                         await discord.FlushAsync();
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Console.WriteLine("⏹ Playback cancelled");
                     }
                     catch (Exception ex)
                     {
@@ -246,9 +266,10 @@ public class MusicService
         {
             Console.WriteLine("❌ PlayByUserIdAsync ERROR");
             Console.WriteLine(ex);
-            throw; // สำคัญ: ให้ ASP.NET log stacktrace เต็ม
+            throw;
         }
     }
+
 
 
 
