@@ -61,19 +61,31 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            if (_audioClients.TryGetValue(channel.Guild.Id, out var ex) &&
-                ex.ConnectionState == ConnectionState.Connected)
-                return ex;
+            if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
+                existing.ConnectionState == ConnectionState.Connected)
+                return existing;
 
-            _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
+            // ✅ STOP + DISPOSE SESSION เก่า (สำคัญมาก)
+            if (_audioClients.TryRemove(channel.Guild.Id, out var old))
+            {
+                try
+                {
+                    await old.StopAsync();
+                    old.Dispose();
+                }
+                catch { }
+            }
 
             Console.WriteLine("🔊 Connecting voice...");
             var client = await channel.ConnectAsync(selfDeaf: true);
 
+            // ✅ รอให้ Discord sync
+            await Task.Delay(500);
+
             client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
+                _audioClients.TryRemove(channel.Guild.Id, out _);
                 return Task.CompletedTask;
             };
 
