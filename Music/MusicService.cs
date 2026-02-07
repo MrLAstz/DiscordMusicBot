@@ -120,22 +120,21 @@ public class MusicService
                 try
                 {
                     // 🔥 ใช้ VIDEO URL เท่านั้น (ให้ ffmpeg จัดการเอง)
-                    var videoUrl = await _youtube.ResolveVideoUrlAsync(input);
-
-                    Console.WriteLine($"▶ Playing: {videoUrl}");
+                    var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
 
                     var psi = new ProcessStartInfo
                     {
                         FileName = "ffmpeg",
                         Arguments =
-                            $"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
-                            $"-i \"{videoUrl}\" " +
-                            "-ac 2 -ar 48000 -f s16le -loglevel error pipe:1",
+                            "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
+                            $"-i \"{audioUrl}\" " +
+                            "-vn -ac 2 -ar 48000 -f s16le pipe:1",
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         UseShellExecute = false,
                         CreateNoWindow = true
                     };
+
 
                     using var ffmpeg = Process.Start(psi);
                     if (ffmpeg == null) return;

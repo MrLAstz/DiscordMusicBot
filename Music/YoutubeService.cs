@@ -9,6 +9,7 @@ public class YoutubeService
     private readonly YoutubeClient _youtube = new();
     private static readonly Random _rand = new();
 
+    // ===== SEARCH =====
     public async Task<List<object>> SearchVideosAsync(string query, int limit = 18, int offset = 0)
     {
         var results = new List<object>();
@@ -26,18 +27,21 @@ public class YoutubeService
                 author = video.Author.ChannelTitle,
                 duration = video.Duration?.ToString(@"mm\:ss") ?? "00:00",
                 views = FormatViews(_rand.Next(100_000, 10_000_000)),
-                uploaded = "1 month ago"
+                uploaded = "recent"
             });
 
             if (results.Count >= limit) break;
         }
+
         return results;
     }
 
+    // ===== AUDIO STREAM (FIXED) =====
     public async Task<string> GetAudioOnlyUrlAsync(string input)
     {
-        var videoUrl = input;
+        string videoUrl = input;
 
+        // 🔍 search ถ้าไม่ใช่ลิงก์
         if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
         {
             await foreach (var v in _youtube.Search.GetVideosAsync(input))
@@ -49,16 +53,14 @@ public class YoutubeService
 
         var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
 
-        var audio = manifest.GetAudioOnlyStreams()
-            .Where(s => s.Container == Container.WebM)
+        // ✅ เลือก AudioOnly ที่เสถียรที่สุด
+        var audio = manifest
+            .GetAudioOnlyStreams()
             .OrderByDescending(s => s.Bitrate)
-            .FirstOrDefault()
-            ?? manifest.GetAudioOnlyStreams()
-                .OrderByDescending(s => s.Bitrate)
-                .FirstOrDefault();
+            .FirstOrDefault();
 
         if (audio == null)
-            throw new Exception("❌ ไม่พบไฟล์เสียงที่เล่นได้");
+            throw new Exception("❌ ไม่พบ audio stream");
 
         return audio.Url;
     }
@@ -70,6 +72,7 @@ public class YoutubeService
         return $"{views} views";
     }
 
+    // ===== RESOLVE VIDEO URL =====
     public async Task<string> ResolveVideoUrlAsync(string input)
     {
         if (input.Contains("youtube.com") || input.Contains("youtu.be"))
@@ -80,6 +83,4 @@ public class YoutubeService
 
         throw new Exception("❌ ไม่พบวิดีโอ");
     }
-
-
 }
