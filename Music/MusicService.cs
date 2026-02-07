@@ -169,6 +169,7 @@ public class MusicService
                     {
                         FileName = "ffmpeg",
                         Arguments =
+                            "-loglevel error " +
                             "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
                             $"-i \"{audioUrl}\" " +
                             "-vn -ac 2 -ar 48000 -f s16le pipe:1",
@@ -181,17 +182,11 @@ public class MusicService
                     using var ffmpeg = Process.Start(psi);
                     if (ffmpeg == null) return;
 
-                    _ = Task.Run(async () =>
-                    {
-                        var err = await ffmpeg.StandardError.ReadToEndAsync();
-                        if (!string.IsNullOrWhiteSpace(err))
-                            Console.WriteLine($"[ffmpeg] {err}");
-                    });
-
                     using var discord = audio.CreatePCMStream(
                         AudioApplication.Music,
-                        bitrate: 96000,
-                        bufferMillis: 200);
+                        bitrate: 128000,
+                        bufferMillis: 200
+                    );
 
                     try
                     {
@@ -204,6 +199,7 @@ public class MusicService
                         if (!ffmpeg.HasExited)
                             ffmpeg.Kill();
                     }
+
                 }
                 catch (OperationCanceledException) { }
                 catch (Exception ex)
