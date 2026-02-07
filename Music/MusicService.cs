@@ -188,27 +188,32 @@ public class MusicService
                         bufferMillis: 200
                     );
 
-                    // 🔍 DEBUG: เช็กว่า ffmpeg ส่งเสียงออกมาจริงไหม
+                    // 🔍 DEBUG: ตรวจว่า ffmpeg มีเสียงออกจริงไหม
                     var probeBuffer = new byte[4096];
-                    var bytesRead = await ffmpeg.StandardOutput.BaseStream
-                        .ReadAsync(probeBuffer, 0, probeBuffer.Length);
+
+                    int bytesRead = await ffmpeg.StandardOutput.BaseStream
+                        .ReadAsync(probeBuffer.AsMemory(0, probeBuffer.Length), cts.Token);
 
                     Console.WriteLine($"🎵 ffmpeg bytes: {bytesRead}");
 
-                    if (bytesRead == 0)
+                    if (bytesRead <= 0)
                     {
                         Console.WriteLine("❌ ffmpeg ไม่มี audio output");
                         return;
                     }
 
-                    // ⚠️ เขียน buffer แรกเข้า Discord ก่อน
-                    await discord.WriteAsync(probeBuffer, 0, bytesRead, cts.Token);
+                    // เขียนเสียงก้อนแรกเข้า Discord
+                    await discord.WriteAsync(
+                        probeBuffer.AsMemory(0, bytesRead),
+                        cts.Token
+                    );
 
-                    // ▶️ ค่อย stream ต่อปกติ
+                    // ▶️ stream ต่อปกติ
                     try
                     {
                         await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
-                            discord, 32768, cts.Token);
+                            discord, 32768, cts.Token
+                        );
                     }
                     finally
                     {
