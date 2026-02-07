@@ -39,33 +39,19 @@ public class MusicService
         => _discordClient = client;
 
     // ===== JOIN BY USER =====
-    public async Task<bool> JoinByUserIdAsync(ulong userId)
-    {
-        if (_discordClient == null) return false;
-
-        foreach (var g in _discordClient.Guilds)
-        {
-            var u = g.GetUser(userId);
-            if (u?.VoiceChannel != null)
-            {
-                await JoinAsync(u.VoiceChannel);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // ===== JOIN VOICE =====
     public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
         await _joinLock.WaitAsync();
         try
         {
-            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient old) &&
+            // ✅ ถ้ามี client ที่ยัง connected อยู่ ใช้ตัวเดิม
+            if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
                 existing.ConnectionState == ConnectionState.Connected)
+            {
                 return existing;
+            }
 
-            // ✅ STOP + DISPOSE SESSION เก่า (สำคัญมาก)
+            // ✅ ล้าง session เก่าทิ้งให้หมด
             if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient old))
             {
                 try
@@ -79,13 +65,13 @@ public class MusicService
             Console.WriteLine("🔊 Connecting voice...");
             var client = await channel.ConnectAsync(selfDeaf: true);
 
-            // ✅ รอให้ Discord sync
+            // 🔥 สำคัญมาก กัน session expired (4006)
             await Task.Delay(500);
 
             client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient old)
+                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
                 return Task.CompletedTask;
             };
 
