@@ -7,13 +7,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-        /* ===== CSS เดิมทั้งหมด (ไม่แก้) ===== */
+        /* ===== CSS เดิมทั้งหมด ไม่ตัด ===== */
         :root {
             --yt-red: #ff0000;
             --bg-dark: #0f0f0f;
             --card-bg: #1e1e1e;
             --suggest-bg: #282828;
-            --text-main: #fff;
+            --text-main: #ffffff;
             --text-dim: #aaa;
             --discord-blue: #5865F2;
         }
@@ -136,6 +136,7 @@
             border-top: 1px solid #333;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             padding: 0 20px;
         }
 
@@ -155,8 +156,11 @@
         <div class="logo">🔴 MrLastBot</div>
         <div class="search-container">
             <div style="display:flex">
-                <input id="search" placeholder="ค้นหาเพลง..." onkeypress="if(event.key==='Enter') search()">
-                <button class="search-btn" onclick="search()"><i class="fas fa-search"></i></button>
+                <input id="search" placeholder="ค้นหาเพลง..."
+                       onkeypress="if(event.key==='Enter') search()">
+                <button class="search-btn" onclick="search()">
+                    <i class="fas fa-search"></i>
+                </button>
             </div>
             <div id="suggestion-box"></div>
         </div>
@@ -171,11 +175,11 @@
     <div class="main-container">
         <div class="sidebar">
             <div class="status-card">
-                <div style="font-size:.8em;color:#aaa">📍 Server</div>
+                <div style="font-size:.8em;color:#aaa">📍 Current Server</div>
                 <div id="guild-name">กรุณา Login</div>
             </div>
             <div class="status-card">
-                <div style="font-size:.8em;color:#aaa">👥 Voice</div>
+                <div style="font-size:.8em;color:#aaa">👥 Voice Members</div>
                 <div id="user-list">-</div>
             </div>
         </div>
@@ -204,9 +208,10 @@
         let isPlaying = false;
         let currentQuery = "";
 
+        /* ===== Discord Login (เดิม) ===== */
         async function handleDiscordLogin() {
             const hash = new URLSearchParams(location.hash.slice(1));
-            const token = hash.get("access_token") || localStorage.getItem("token");
+            const token = hash.get("access_token") || localStorage.getItem("discord_token");
             if (!token) return;
 
             const res = await fetch("https://discord.com/api/users/@me", {
@@ -214,12 +219,13 @@
             });
             const user = await res.json();
             loggedUserId = user.id;
-            localStorage.setItem("token", token);
-            document.getElementById("auth-section").innerHTML = `👋 ${user.username}`;
+            localStorage.setItem("discord_token", token);
+            document.getElementById("auth-section").innerText = `👋 ${user.username}`;
             history.replaceState({}, document.title, "/");
             updateStatus();
         }
 
+        /* ===== Search (เดิม) ===== */
         async function search() {
             currentQuery = document.getElementById("search").value;
             const res = await fetch(`/api/search?q=${encodeURIComponent(currentQuery)}`);
@@ -237,36 +243,41 @@
                 }</div>`;
         }
 
-        /* 🔥 จุดสำคัญ: ส่ง JSON แบบเดียวกับ Discord */
+        /* ===== PLAY (คง query string เดิม) ===== */
         async function play(url, title, author) {
-            if (!loggedUserId) { alert("กรุณา Login"); return; }
+            if (!loggedUserId) {
+                alert("กรุณา Login ก่อน");
+                return;
+            }
 
             document.getElementById("current-title").innerText = title;
             document.getElementById("current-author").innerText = author;
 
             isPlaying = true;
-            document.getElementById("play-pause-btn").innerHTML = '<i class="fas fa-pause"></i>';
+            document.getElementById("play-pause-btn").innerHTML =
+                '<i class="fas fa-pause"></i>';
 
-            await fetch("/play", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    input: url,
-                    requestedBy: author || "Web",
-                    source: "web"
-                })
+            // ❗ endpoint เดิม ไม่หาย
+            await fetch(`/play?url=${encodeURIComponent(url)}&userId=${loggedUserId}`, {
+                method: "POST"
             });
         }
 
+        /* ===== TOGGLE (เดิม) ===== */
         async function togglePlay() {
             isPlaying = !isPlaying;
             document.getElementById("play-pause-btn").innerHTML =
                 isPlaying ? '<i class="fas fa-pause"></i>' : '<i class="fas fa-play"></i>';
-            await fetch("/toggle", { method: "POST" });
+
+            if (loggedUserId) {
+                await fetch(`/toggle?userId=${loggedUserId}`, { method: "POST" });
+            }
         }
 
+        /* ===== STATUS (เดิม) ===== */
         async function updateStatus() {
-            const res = await fetch("/status");
+            if (!loggedUserId) return;
+            const res = await fetch(`/status?userId=${loggedUserId}`);
             const data = await res.json();
             document.getElementById("guild-name").innerText = data.guild || "-";
         }
