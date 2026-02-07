@@ -11,6 +11,7 @@ public class BotService
     private readonly MusicService _music;
     private readonly CommandHandler _handler;
     private readonly TaskCompletionSource<bool> _readyTcs = new();
+    public Task ReadyTask => _readyTcs.Task;
 
     public BotService(string token, MusicService music)
     {

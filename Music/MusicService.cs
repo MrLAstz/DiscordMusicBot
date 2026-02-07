@@ -15,7 +15,7 @@ public class MusicService
 
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
-    private Task _readyTask = Task.CompletedTask;
+    private Task? _readyTask;
 
     // ===== FIX libopus (Linux / Docker / Railway) =====
     static MusicService()
@@ -68,23 +68,24 @@ public class MusicService
     // ===== JOIN VOICE =====
     public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
+        if (_readyTask != null)
+            await _readyTask; // ⛔ ห้ามต่อ voice ก่อน READY
+
         await _joinLock.WaitAsync();
         try
         {
-            // 1️⃣ ถ้ามี client ที่ยังใช้ได้ → ใช้ต่อ
-            if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient existing) &&
+            if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
                 existing.ConnectionState == ConnectionState.Connected)
             {
                 return existing;
             }
 
-            // 2️⃣ ปิด session เก่าแบบ "รอจริง"
-            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old))
+            if (_audioClients.TryRemove(channel.Guild.Id, out var old))
             {
                 try
                 {
                     await old.StopAsync();
-                    await Task.Delay(300); // สำคัญมาก
+                    await Task.Delay(500);
                     old.Dispose();
                 }
                 catch { }
@@ -92,30 +93,35 @@ public class MusicService
 
             Console.WriteLine("🔊 Connecting voice...");
 
-            // 3️⃣ Connect แบบ safe
             var client = await channel.ConnectAsync(
-                selfDeaf: false,
-                selfMute: false
+                selfMute: false,
+                selfDeaf: false
             );
 
+            // 🔥 รอ Discord sync voice state จริง
+            var timeout = Task.Delay(10_000);
+            while (client.ConnectionState != ConnectionState.Connected)
+            {
+                if (timeout.IsCompleted)
+                {
+                    Console.WriteLine("❌ Voice connect timeout");
+                    await client.StopAsync();
+                    return null;
+                }
 
-            // 4️⃣ รอ Discord sync voice state
-            await Task.Delay(800);
+                await Task.Delay(200);
+            }
 
             client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-
-                _audioClients.TryRemove(
-                    channel.Guild.Id,
-                    out IAudioClient? oldClient
-                );
-
+                _audioClients.TryRemove(channel.Guild.Id, out _);
                 return Task.CompletedTask;
             };
 
-
             _audioClients[channel.Guild.Id] = client;
+            Console.WriteLine("✅ Voice connected");
+
             return client;
         }
         finally
@@ -123,6 +129,7 @@ public class MusicService
             _joinLock.Release();
         }
     }
+
 
     // ===== PLAY =====
     public async Task PlayByUserIdAsync(ulong userId, string input)
