@@ -170,10 +170,9 @@ public class MusicService
                     {
                         FileName = "ffmpeg",
                         Arguments =
-                            "-loglevel error " +
-                            "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
-                            $"-i \"{audioUrl}\" " +
-                            "-vn -ac 2 -ar 48000 -f s16le pipe:1",
+                                    "-hide_banner -loglevel error " +
+                                    "-i \"" + audioUrl + "\" " +
+                                    "-vn -ac 2 -ar 48000 -f s16le pipe:1";
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         UseShellExecute = false,
@@ -189,6 +188,23 @@ public class MusicService
                         bufferMillis: 200
                     );
 
+                    // 🔍 DEBUG: เช็กว่า ffmpeg ส่งเสียงออกมาจริงไหม
+                    var probeBuffer = new byte[4096];
+                    var bytesRead = await ffmpeg.StandardOutput.BaseStream
+                        .ReadAsync(probeBuffer, 0, probeBuffer.Length);
+
+                    Console.WriteLine($"🎵 ffmpeg bytes: {bytesRead}");
+
+                    if (bytesRead == 0)
+                    {
+                        Console.WriteLine("❌ ffmpeg ไม่มี audio output");
+                        return;
+                    }
+
+                    // ⚠️ เขียน buffer แรกเข้า Discord ก่อน
+                    await discord.WriteAsync(probeBuffer, 0, bytesRead, cts.Token);
+
+                    // ▶️ ค่อย stream ต่อปกติ
                     try
                     {
                         await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
