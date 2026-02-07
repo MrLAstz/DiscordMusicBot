@@ -179,7 +179,10 @@ public class MusicService
                 try
                 {
                     Console.WriteLine("🎵 Resolving audio url...");
-                    var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
+
+                    var videoId = await _youtube.ResolveVideoIdAsync(input);
+                    var audioUrl = await _youtube.GetAudioOnlyUrlByVideoIdAsync(videoId);
+
                     Console.WriteLine("✅ Audio URL OK");
 
                     // 🎬 ffmpeg = ตัวแปลงเสียงหลัก
