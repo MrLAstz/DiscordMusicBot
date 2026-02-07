@@ -16,10 +16,18 @@ class Program
         }
 
         var music = new MusicService();
+        var bot = new BotService(token, music);
+
+        // 🔥 1. start bot
+        await bot.StartAsync();
+
+        // 🔥 2. รอ Discord READY (สำคัญที่สุด)
+        await bot.WaitUntilReadyAsync();
+
+        // 🔥 3. ค่อยเปิด Web API
         _ = Task.Run(() => WebServer.Start(args, music, port));
 
-        var bot = new BotService(token, music);
-        await bot.StartAsync();
+        Console.WriteLine("🌐 Web server started");
 
         await Task.Delay(-1);
     }

@@ -10,6 +10,7 @@ public class BotService
     private readonly string _token;
     private readonly MusicService _music;
     private readonly CommandHandler _handler;
+    private readonly TaskCompletionSource<bool> _readyTcs = new();
 
     public BotService(string token, MusicService music)
     {
@@ -28,6 +29,7 @@ public class BotService
 
         _client = new DiscordSocketClient(config);
         _music.SetDiscordClient(_client);
+        _music.SetReadyTask(_readyTcs.Task); // 🔥 สำคัญ
 
         _handler = new CommandHandler(_client, _music);
     }
@@ -41,8 +43,13 @@ public class BotService
         await _client.StartAsync();
     }
 
+    public Task WaitUntilReadyAsync()
+        => _readyTcs.Task;
+
     private async Task OnReadyAsync()
     {
+        Console.WriteLine("🤖 Discord READY");
+
         var commands = new List<SlashCommandBuilder>
         {
             new SlashCommandBuilder().WithName("help").WithDescription("ดูเมนูคำสั่งทั้งหมดของบอท"),
@@ -55,15 +62,17 @@ public class BotService
         try
         {
             foreach (var cmd in commands)
-            {
                 await _client.CreateGlobalApplicationCommandAsync(cmd.Build());
-            }
-            Console.WriteLine("✅ ลงทะเบียนเมนู Slash Commands สำเร็จ!");
+
+            Console.WriteLine("✅ Slash Commands registered");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ ลงทะเบียนเมนูพลาด: {ex.Message}");
+            Console.WriteLine($"❌ Slash command error: {ex}");
         }
+
+        // 🔥 ปลดล็อก READY
+        _readyTcs.TrySetResult(true);
     }
 
     private Task LogAsync(LogMessage log)

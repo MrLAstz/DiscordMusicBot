@@ -15,6 +15,7 @@ public class MusicService
 
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
+    private Task _readyTask = Task.CompletedTask;
 
     // ===== FIX libopus (Linux / Docker / Railway) =====
     static MusicService()
@@ -35,12 +36,19 @@ public class MusicService
         }
     }
 
+    public void SetReadyTask(Task readyTask)
+    {
+        _readyTask = readyTask;
+    }
+
     public void SetDiscordClient(DiscordSocketClient client)
         => _discordClient = client;
 
     // ===== JOIN BY USER ID =====
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
+        await _readyTask;
+
         if (_discordClient == null)
             return false;
 
@@ -119,6 +127,8 @@ public class MusicService
     // ===== PLAY =====
     public async Task PlayByUserIdAsync(ulong userId, string input)
     {
+        await _readyTask;
+
         if (_discordClient == null) return;
 
         foreach (var g in _discordClient.Guilds)
@@ -280,10 +290,12 @@ public class MusicService
 
 
     // ===== USERS IN VOICE =====
-    public Task<object> GetUsersInVoice(ulong userId)
+    public async Task<object> GetUsersInVoice(ulong userId)
     {
+        await _readyTask;
+
         if (_discordClient == null)
-            return Task.FromResult<object>(new { guild = "offline", users = new List<object>() });
+            return new { guild = "offline", users = new List<object>() };
 
         SocketGuildUser? user = null;
         SocketGuild? guild = null;
@@ -299,7 +311,7 @@ public class MusicService
         }
 
         if (user?.VoiceChannel == null || guild == null)
-            return Task.FromResult<object>(new { guild = "not in voice", users = new List<object>() });
+            return new { guild = "not in voice", users = new List<object>() };
 
         var channel = user.VoiceChannel;
 
@@ -313,10 +325,10 @@ public class MusicService
             })
             .ToList();
 
-        return Task.FromResult<object>(new
+        return new
         {
             guild = $"{guild.Name} ({channel.Name})",
             users
-        });
+        };
     }
 }
