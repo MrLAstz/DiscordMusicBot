@@ -94,12 +94,18 @@ public class MusicService
             // 4️⃣ รอ Discord sync voice state
             await Task.Delay(800);
 
-            client.Disconnected += async _ =>
+            client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient? _);
-                await Task.CompletedTask;
+
+                _audioClients.TryRemove(
+                    channel.Guild.Id,
+                    out IAudioClient? oldClient
+                );
+
+                return Task.CompletedTask;
             };
+
 
             _audioClients[channel.Guild.Id] = client;
             return client;
