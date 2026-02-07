@@ -181,7 +181,7 @@ public class MusicService
                     Console.WriteLine("🎵 Resolving audio url...");
 
                     var videoId = await _youtube.ResolveVideoIdAsync(input);
-                    var audioUrl = await _youtube.GetAudioOnlyUrlByVideoIdAsync(videoId);
+                    var audioUrl = await _youtube.GetAudioOnlyUrlAsync(videoId);
 
                     Console.WriteLine("✅ Audio URL OK");
 
