@@ -176,9 +176,9 @@ public class MusicService
                     {
                         FileName = "ffmpeg",
                         Arguments =
-                                    "-hide_banner -loglevel error " +
-                                    "-i \"" + audioUrl + "\" " +
-                                    "-vn -ac 2 -ar 48000 -f s16le pipe:1";
+                            "-hide_banner -loglevel error " +
+                            "-i \"" + audioUrl + "\" " +
+                            "-vn -ac 2 -ar 48000 -f s16le pipe:1",
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         UseShellExecute = false,
