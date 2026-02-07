@@ -4,7 +4,7 @@ using Discord.WebSocket;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using DiscordMusicBot.Music.Models;
+
 namespace DiscordMusicBot.Music;
 
 /// <summary>
