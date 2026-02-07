@@ -36,7 +36,7 @@ public class YoutubeService
         return results;
     }
 
-    // ===== AUDIO STREAM (FIXED) =====
+    // ===== AUDIO STREAM (✅ FOR OLD YoutubeExplode) =====
     public async Task<string> GetAudioOnlyUrlAsync(string input)
     {
         string videoUrl = input;
@@ -53,7 +53,6 @@ public class YoutubeService
 
         var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
 
-        // ✅ เลือก AudioOnly ที่เสถียรที่สุด
         var audio = manifest
             .GetAudioOnlyStreams()
             .OrderByDescending(s => s.Bitrate)
@@ -62,14 +61,8 @@ public class YoutubeService
         if (audio == null)
             throw new Exception("❌ ไม่พบ audio stream");
 
-        return await _youtube.Videos.Streams.GetUrlAsync(audio);
-    }
-
-    private static string FormatViews(long views)
-    {
-        if (views >= 1_000_000) return $"{views / 1_000_000D:F1}M views";
-        if (views >= 1_000) return $"{views / 1_000D:F1}K views";
-        return $"{views} views";
+        // 🔥 สำหรับ YoutubeExplode รุ่นเก่า
+        return audio.Url;
     }
 
     // ===== RESOLVE VIDEO URL =====
@@ -83,4 +76,12 @@ public class YoutubeService
 
         throw new Exception("❌ ไม่พบวิดีโอ");
     }
+
+    private static string FormatViews(long views)
+    {
+        if (views >= 1_000_000) return $"{views / 1_000_000D:F1}M views";
+        if (views >= 1_000) return $"{views / 1_000D:F1}K views";
+        return $"{views} views";
+    }
+
 }
