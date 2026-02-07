@@ -70,7 +70,7 @@ public class MusicService
             }
 
             // clear old session
-            if (_audioClients.TryRemove(channel.Guild.Id, out var old))
+            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old))
             {
                 try
                 {
@@ -89,7 +89,7 @@ public class MusicService
             client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-                _audioClients.TryRemove(channel.Guild.Id, out _);
+                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old);
                 return Task.CompletedTask;
             };
 
@@ -222,7 +222,11 @@ public class MusicService
         }
     }
 
-    public Task ToggleAsync(ulong userId) => SkipAsync(userId);
+    public async Task ToggleAsync(ulong userId)
+    {
+        await SkipAsync(userId);
+    }
+
 
     // ===== USERS IN VOICE =====
     public Task<object> GetUsersInVoice(ulong userId)
