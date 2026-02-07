@@ -61,12 +61,12 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
+            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient old) &&
                 existing.ConnectionState == ConnectionState.Connected)
                 return existing;
 
             // ✅ STOP + DISPOSE SESSION เก่า (สำคัญมาก)
-            if (_audioClients.TryRemove(channel.Guild.Id, out var old))
+            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient old))
             {
                 try
                 {
@@ -85,7 +85,7 @@ public class MusicService
             client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-                _audioClients.TryRemove(channel.Guild.Id, out _);
+                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient old)
                 return Task.CompletedTask;
             };
 
