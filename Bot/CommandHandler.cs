@@ -134,7 +134,7 @@ public class CommandHandler
                         }
 
                         await command.RespondAsync($"🎵 กำลังเริ่มเล่นเพลง: {url}");
-                        await _music.PlayByUserIdAsync(user.Id, url);
+                        await _music.EnqueueAsync(userId, input, ctx.User.Username);
                         break;
                     }
 

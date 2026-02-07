@@ -33,6 +33,10 @@ public class MusicService
     // ⏳ รอ Discord Ready
     private Task? _readyTask;
 
+    private readonly ConcurrentDictionary<ulong, MusicQueue> _queues = new();
+
+    private MusicQueue GetQueue(ulong guildId)
+        => _queues.GetOrAdd(guildId, _ => new MusicQueue());
     // ===== FIX libopus (Linux / Docker) =====
     // 🐧 ถ้าไม่ทำอันนี้ = เข้า voice ได้ แต่ "เงียบ"
     static MusicService()
@@ -53,9 +57,73 @@ public class MusicService
         }
     }
 
+
     // 🔌 Inject จาก Program.cs
     public void SetReadyTask(Task readyTask) => _readyTask = readyTask;
     public void SetDiscordClient(DiscordSocketClient client) => _discordClient = client;
+
+    public async Task EnqueueAsync(
+    ulong userId,
+    string input,
+    string requestedBy
+)
+    {
+        if (_discordClient == null) return;
+
+        foreach (var g in _discordClient.Guilds)
+        {
+            var user = g.GetUser(userId);
+            if (user?.VoiceChannel == null) continue;
+
+            var videoId = await _youtube.ResolveVideoIdAsync(input);
+
+            var track = new MusicTrack
+            {
+                VideoId = videoId,
+                Title = videoId,
+                RequestedBy = requestedBy
+            };
+
+            GetQueue(g.Id).Enqueue(track);
+
+            // ถ้ายังไม่เล่น → เริ่ม loop
+            if (!_cts.ContainsKey(g.Id))
+                _ = PlayQueueAsync(g, user.VoiceChannel);
+
+            return;
+        }
+    }
+
+    private async Task PlayQueueAsync(
+    SocketGuild guild,
+    IVoiceChannel channel
+)
+    {
+        var queue = GetQueue(guild.Id);
+
+        var cts = new CancellationTokenSource();
+        _cts[guild.Id] = cts;
+
+        var audio = await JoinAsync(channel);
+        if (audio == null) return;
+
+        try
+        {
+            while (!cts.IsCancellationRequested &&
+                   queue.TryDequeue(out var track))
+            {
+                var audioUrl =
+                    await _youtube.GetAudioOnlyUrlAsync(track.VideoId);
+
+                await PlayFfmpegAsync(audio, audioUrl, cts.Token);
+            }
+        }
+        finally
+        {
+            _cts.TryRemove(guild.Id, out _);
+        }
+    }
+
 
     // ===== JOIN BY USER ID =====
     // 👤 หา user อยู่ guild ไหน → join ห้องนั้น
