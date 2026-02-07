@@ -86,9 +86,10 @@ public class MusicService
 
             // 3️⃣ Connect แบบ safe
             var client = await channel.ConnectAsync(
-                selfDeaf: true,
+                selfDeaf: false,
                 selfMute: false
             );
+
 
             // 4️⃣ รอ Discord sync voice state
             await Task.Delay(800);
