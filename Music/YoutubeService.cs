@@ -1,5 +1,6 @@
 ﻿using YoutubeExplode;
 using YoutubeExplode.Search;
+using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
 
 namespace DiscordMusicBot.Music;
@@ -9,7 +10,7 @@ public class YoutubeService
     private readonly YoutubeClient _youtube = new();
     private static readonly Random _rand = new();
 
-    // ===== SEARCH =====
+    // ================= SEARCH =================
     public async Task<List<object>> SearchVideosAsync(string query, int limit = 18, int offset = 0)
     {
         var results = new List<object>();
@@ -22,57 +23,53 @@ public class YoutubeService
             results.Add(new
             {
                 title = video.Title,
-                url = video.Url,
-                thumbnail = video.Thumbnails.MaxBy(t => t.Resolution.Area)?.Url,
+                url = $"https://www.youtube.com/watch?v={video.Id}",
+                thumbnail = video.Thumbnails
+                    .OrderByDescending(t => t.Resolution.Area)
+                    .FirstOrDefault()?.Url,
                 author = video.Author.ChannelTitle,
                 duration = video.Duration?.ToString(@"mm\:ss") ?? "00:00",
                 views = FormatViews(_rand.Next(100_000, 10_000_000)),
                 uploaded = "recent"
             });
 
-            if (results.Count >= limit) break;
+            if (results.Count >= limit)
+                break;
         }
 
         return results;
     }
 
-    // ===== AUDIO STREAM (✅ FOR OLD YoutubeExplode) =====
+    // ================= AUDIO STREAM =================
+    // ใช้กับ ffmpeg: -i "<url>"
     public async Task<string> GetAudioOnlyUrlAsync(string input)
     {
-        string videoUrl = input;
+        var videoId = await ResolveVideoIdAsync(input);
 
-        // 🔍 search ถ้าไม่ใช่ลิงก์
-        if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
-        {
-            await foreach (var v in _youtube.Search.GetVideosAsync(input))
-            {
-                videoUrl = v.Url;
-                break;
-            }
-        }
-
-        var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
+        var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoId);
 
         var audio = manifest
             .GetAudioOnlyStreams()
+            .Where(s => s.Container == Container.WebM || s.Container == Container.Mp4)
             .OrderByDescending(s => s.Bitrate)
             .FirstOrDefault();
 
         if (audio == null)
             throw new Exception("❌ ไม่พบ audio stream");
 
-        // 🔥 สำหรับ YoutubeExplode รุ่นเก่า
-        return audio.Url;
+        return audio.Url; // ✅ ยังใช้กับ ffmpeg ได้
     }
 
-    // ===== RESOLVE VIDEO URL =====
-    public async Task<string> ResolveVideoUrlAsync(string input)
+    // ================= RESOLVE VIDEO =================
+    private async Task<VideoId> ResolveVideoIdAsync(string input)
     {
-        if (input.Contains("youtube.com") || input.Contains("youtu.be"))
-            return input;
+        // ถ้าเป็นลิงก์
+        if (YoutubeClient.TryParseVideoId(input) is VideoId id)
+            return id;
 
+        // ถ้าเป็นคำค้น
         await foreach (var v in _youtube.Search.GetVideosAsync(input))
-            return v.Url;
+            return v.Id;
 
         throw new Exception("❌ ไม่พบวิดีโอ");
     }
@@ -83,5 +80,4 @@ public class YoutubeService
         if (views >= 1_000) return $"{views / 1_000D:F1}K views";
         return $"{views} views";
     }
-
 }

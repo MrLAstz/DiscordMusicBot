@@ -7,17 +7,34 @@ using System.Runtime.InteropServices;
 
 namespace DiscordMusicBot.Music;
 
+/// <summary>
+/// 🎵 หัวใจของบอทเพลง
+/// - Join voice
+/// - Pipe เสียงจาก ffmpeg → Discord
+/// - Skip / Toggle / List คนในห้อง
+/// </summary>
 public class MusicService
 {
+    // 🎧 guildId → audio client
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
+
+    // ⏹ guildId → cancellation token (ใช้ stop / skip)
     private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _cts = new();
+
+    // 🚦 กัน join voice ซ้อน
     private readonly SemaphoreSlim _joinLock = new(1, 1);
 
+    // 🤖 Discord client จาก Program.cs
     private DiscordSocketClient? _discordClient;
+
+    // ▶️ YouTube backend
     private readonly YoutubeService _youtube = new();
+
+    // ⏳ รอ Discord Ready
     private Task? _readyTask;
 
     // ===== FIX libopus (Linux / Docker) =====
+    // 🐧 ถ้าไม่ทำอันนี้ = เข้า voice ได้ แต่ "เงียบ"
     static MusicService()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -36,10 +53,12 @@ public class MusicService
         }
     }
 
+    // 🔌 Inject จาก Program.cs
     public void SetReadyTask(Task readyTask) => _readyTask = readyTask;
     public void SetDiscordClient(DiscordSocketClient client) => _discordClient = client;
 
     // ===== JOIN BY USER ID =====
+    // 👤 หา user อยู่ guild ไหน → join ห้องนั้น
     public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
         if (_readyTask != null)
@@ -62,6 +81,7 @@ public class MusicService
     }
 
     // ===== JOIN VOICE =====
+    // 🔊 เข้าห้อง voice แบบ safe + ไม่ซ้อน
     public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
         if (_readyTask != null)
@@ -70,12 +90,14 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
+            // ✅ ถ้าเชื่อมอยู่แล้ว ไม่ต้อง join ซ้ำ
             if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
                 existing.ConnectionState == ConnectionState.Connected)
             {
                 return existing;
             }
 
+            // 🔁 เคลียร์ client เก่า (กันหลุด 4006)
             if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient old))
             {
                 try
@@ -90,6 +112,7 @@ public class MusicService
 
             var client = await channel.ConnectAsync(selfMute: false, selfDeaf: false);
 
+            // ⏱ รอจนกว่าจะ connected จริง
             var timeout = Stopwatch.StartNew();
             while (client.ConnectionState != ConnectionState.Connected)
             {
@@ -103,6 +126,7 @@ public class MusicService
                 await Task.Delay(200);
             }
 
+            // 🔌 ถ้าหลุด → ล้าง state
             client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
@@ -122,6 +146,7 @@ public class MusicService
     }
 
     // ===== PLAY =====
+    // ▶️ เล่นเพลงจาก keyword หรือ YouTube URL
     public async Task PlayByUserIdAsync(ulong userId, string input)
     {
         if (_discordClient == null) return;
@@ -131,6 +156,7 @@ public class MusicService
             var user = guild.GetUser(userId);
             if (user?.VoiceChannel == null) continue;
 
+            // ⏹ stop เพลงเก่า
             if (_cts.TryRemove(guild.Id, out var old))
             {
                 old.Cancel();
@@ -147,6 +173,7 @@ public class MusicService
                 return;
             }
 
+            // 🚀 เล่นใน background
             _ = Task.Run(async () =>
             {
                 try
@@ -155,6 +182,7 @@ public class MusicService
                     var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
                     Console.WriteLine("✅ Audio URL OK");
 
+                    // 🎬 ffmpeg = ตัวแปลงเสียงหลัก
                     var psi = new ProcessStartInfo
                     {
                         FileName = "ffmpeg",
@@ -176,6 +204,7 @@ public class MusicService
                         return;
                     }
 
+                    // 📜 log ffmpeg (debug เทพมาก)
                     _ = Task.Run(async () =>
                     {
                         while (!ffmpeg.StandardError.EndOfStream)
@@ -186,9 +215,10 @@ public class MusicService
                         }
                     });
 
+                    // 🔊 PCM stream → Discord
                     using var discord = audio.CreatePCMStream(AudioApplication.Music);
 
-                    // 🔥🔥🔥 สำคัญที่สุด
+                    // 🗣 บอก Discord ว่า "กำลังพูดนะ"
                     await audio.SetSpeakingAsync(true);
 
                     await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
@@ -218,6 +248,7 @@ public class MusicService
     }
 
     // ===== SKIP =====
+    // ⏭ หยุดทุก guild
     public Task SkipAsync(ulong userId)
     {
         foreach (var kv in _cts)
@@ -229,14 +260,15 @@ public class MusicService
         return Task.CompletedTask;
     }
 
-    // ===== TOGGLE (PLAY / STOP) =====
+    // ===== TOGGLE =====
+    // 🔘 play / stop (ตอนนี้ = stop)
     public async Task ToggleAsync(ulong userId)
     {
         await SkipAsync(userId);
     }
 
-
     // ===== USERS IN VOICE =====
+    // 👥 เอาไว้โชว์คนในห้อง voice (frontend-friendly)
     public async Task<object> GetUsersInVoice(ulong userId)
     {
         if (_readyTask != null)
