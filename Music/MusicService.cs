@@ -38,21 +38,39 @@ public class MusicService
     public void SetDiscordClient(DiscordSocketClient client)
         => _discordClient = client;
 
-    // ===== JOIN BY USER =====
-    public async Task<IAudioClient?> JoinByUserIdAsync(IVoiceChannel channel)
+    // ===== JOIN BY USER ID =====
+    public async Task<bool> JoinByUserIdAsync(ulong userId)
+    {
+        if (_discordClient == null)
+            return false;
+
+        foreach (var guild in _discordClient.Guilds)
+        {
+            var user = guild.GetUser(userId);
+            if (user?.VoiceChannel != null)
+            {
+                await JoinAsync(user.VoiceChannel);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // ===== JOIN VOICE =====
+    public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
         await _joinLock.WaitAsync();
         try
         {
-            // ✅ ถ้ามี client ที่ยัง connected อยู่ ใช้ตัวเดิม
             if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
                 existing.ConnectionState == ConnectionState.Connected)
             {
                 return existing;
             }
 
-            // ✅ ล้าง session เก่าทิ้งให้หมด
-            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient old))
+            // clear old session
+            if (_audioClients.TryRemove(channel.Guild.Id, out var old))
             {
                 try
                 {
@@ -65,13 +83,13 @@ public class MusicService
             Console.WriteLine("🔊 Connecting voice...");
             var client = await channel.ConnectAsync(selfDeaf: true);
 
-            // 🔥 สำคัญมาก กัน session expired (4006)
+            // 🔥 กัน session expired (4006)
             await Task.Delay(500);
 
             client.Disconnected += _ =>
             {
                 Console.WriteLine("🔌 Voice disconnected");
-                _audioClients.TryRemove(channel.Guild.Id, out IAudioClient _);
+                _audioClients.TryRemove(channel.Guild.Id, out _);
                 return Task.CompletedTask;
             };
 
@@ -104,7 +122,7 @@ public class MusicService
             var cts = new CancellationTokenSource();
             _cts[g.Id] = cts;
 
-            var audio = await JoinByUserIdAsync(u.VoiceChannel);
+            var audio = await JoinAsync(u.VoiceChannel);
             if (audio == null) return;
 
             if (!await WaitForVoiceReady(audio))
