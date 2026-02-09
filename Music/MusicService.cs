@@ -77,6 +77,16 @@ public class MusicService
         }
     }
 
+    public IEnumerable<object> GetQueue(ulong guildId)
+    {
+        var q = GetQueue(guildId);
+        return q.Select(t => new {
+            title = t.Title,
+            thumbnail = t.Thumbnail,
+            requestedBy = t.RequestedBy
+        });
+    }
+
     // ======================================================
     // 🔁 Player Loop (1 guild = 1 loop เท่านั้น)
     // ======================================================
@@ -145,36 +155,51 @@ public class MusicService
     // ======================================================
     // 🎵 FFmpeg → Discord PCM
     // ======================================================
-    private async Task PlayFfmpegAsync(
-        IAudioClient audio,
-        MusicTrack track,
-        CancellationToken token)
+    private async Task PlayFfmpegAsync(IAudioClient audio, MusicTrack track, CancellationToken token)
     {
-        var videoId = await _youtube.ResolveVideoIdAsync(track.Input);
-        var audioUrl = await _youtube.GetAudioOnlyUrlAsync(videoId);
-
-        var psi = new ProcessStartInfo
+        try
         {
-            FileName = "ffmpeg",
-            Arguments =
-                "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 " +
-                $"-i \"{audioUrl}\" " +
-                "-vn -ac 2 -ar 48000 -f s16le pipe:1",
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+            var videoId = await _youtube.ResolveVideoIdAsync(track.Input);
+            var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoId);
+            var streamInfo = manifest.GetAudioOnlyStreams().GetWithHighestBitrate();
 
-        using var ffmpeg = Process.Start(psi);
-        if (ffmpeg == null) return;
+            // ดึง Stream มาไว้ในตัวแปรก่อน
+            using var youtubeStream = await _youtube.Videos.Streams.GetAsync(streamInfo);
 
-        using var discord = audio.CreatePCMStream(AudioApplication.Music);
-        await audio.SetSpeakingAsync(true);
+            var psi = new ProcessStartInfo
+            {
+                FileName = "ffmpeg", // หรือ "/usr/bin/ffmpeg"
+                Arguments = "-hide_banner -loglevel panic -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1",
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
 
-        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(discord, token);
+            using var ffmpeg = Process.Start(psi);
+            if (ffmpeg == null) return;
 
-        await discord.FlushAsync();
-        await audio.SetSpeakingAsync(false);
+            using var discord = audio.CreatePCMStream(AudioApplication.Music);
+            await audio.SetSpeakingAsync(true);
+
+            // Task สำหรับป้อนข้อมูลเข้า FFmpeg
+            var fillFfmpegTask = youtubeStream.CopyToAsync(ffmpeg.StandardInput.BaseStream, token)
+                .ContinueWith(_ => ffmpeg.StandardInput.Close()); // ต้องปิดไม่งั้น FFmpeg ไม่หยุดรอ
+
+            // Task สำหรับดึงข้อมูลจาก FFmpeg ไป Discord
+            var sendToDiscordTask = ffmpeg.StandardOutput.BaseStream.CopyToAsync(discord, token);
+
+            await Task.WhenAny(fillFfmpegTask, sendToDiscordTask);
+        }
+        catch (Exception ex)
+        {
+            // แนะนำให้พ่น Error ออกมาดูใน Docker Logs
+            Console.WriteLine($"[MusicService Error]: {ex.Message}");
+        }
+        finally
+        {
+            await audio.SetSpeakingAsync(false);
+        }
     }
 
     // ======================================================
@@ -196,6 +221,11 @@ public class MusicService
     // ======================================================
     public Task ToggleAsync(ulong userId)
         => SkipAsync(userId);
+
+    public void TogglePause(ulong userId)
+    {
+        _player.Toggle();
+    }
 
     // ======================================================
     // 👥 STATUS (frontend)

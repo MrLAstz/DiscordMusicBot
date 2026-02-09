@@ -90,4 +90,9 @@ public class YoutubeService
         if (views >= 1_000) return $"{views / 1_000D:F1}K views";
         return $"{views} views";
     }
+    public async Task<List<MusicTrack>> GetPlaylistAsync(string url)
+    {
+        // ดึง playlist → return List<MusicTrack>
+    }
+
 }
