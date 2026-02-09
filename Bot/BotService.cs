@@ -19,6 +19,7 @@ public class BotService
         var config = new DiscordSocketConfig
         {
             GatewayIntents = GatewayIntents.AllUnprivileged |
+                             GatewayIntents.Guilds |
                              GatewayIntents.GuildMembers |
                              GatewayIntents.GuildPresences |
                              GatewayIntents.MessageContent |

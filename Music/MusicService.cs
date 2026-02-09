@@ -27,6 +27,10 @@ public class MusicService
     // ===== FIX libopus (Linux / Docker / Railway) =====
     static MusicService()
     {
+        // บรรทัดนี้จะยืนยันว่า DLL ที่โหลดมาคือเวอร์ชันอะไร
+        Console.WriteLine("======================================");
+        Console.WriteLine($"🚀 RUNNING WITH DISCORD.NET: {Discord.DiscordConfig.Version}");
+        Console.WriteLine("======================================");
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             NativeLibrary.SetDllImportResolver(
