@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Audio;
 using Discord.WebSocket;
+using DiscordMusicBot.Music.DiscordMusicBot.Music;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -63,43 +64,52 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // 1. ตรวจสอบว่ามี Session เดิมที่ใช้งานได้อยู่แล้วไหม
-            if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient? existing))
+            // 1️⃣ ถ้ามี client ที่ยังใช้ได้ → ใช้ต่อ
+            if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient existing) &&
+                existing.ConnectionState == ConnectionState.Connected)
             {
-                if (existing.ConnectionState == ConnectionState.Connected)
-                    return existing;
-
-                // ถ้าค้างอยู่แต่ไม่ Connected ให้พยายาม Stop และเตะทิ้ง
-                try { await existing.StopAsync(); } catch { }
-                _audioClients.TryRemove(channel.Guild.Id, out _);
+                return existing;
             }
 
-            Console.WriteLine($"🔊 Attempting to connect to {channel.Name}...");
-
-            // 2. Connect ใหม่ (สำคัญ: Discord.Net บางเวอร์ชันต้องการให้ Disconnect ก่อนถ้าจะย้ายห้อง)
-            // แต่ในกรณี 4006 เราจะลอง Connect เลยโดยใช้หน่วงเวลาช่วย
-            var client = await channel.ConnectAsync(selfDeaf: false, selfMute: false);
-
-            // 3. รอให้สถานะนิ่งสักพัก (ป้องกันการส่งข้อมูลเร็วเกินไปจนโดน 4006)
-            int timeout = 0;
-            while (client.ConnectionState != ConnectionState.Connected && timeout < 25)
+            // 2️⃣ ปิด session เก่าแบบ "รอจริง"
+            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old))
             {
-                timeout++;
+                try
+                {
+                    await old.StopAsync();
+                    await Task.Delay(300); // สำคัญมาก
+                    old.Dispose();
+                }
+                catch { }
             }
 
-            if (client.ConnectionState == ConnectionState.Connected)
-            {
-                _audioClients[channel.Guild.Id] = client;
-                Console.WriteLine("✅ Voice Connected and Ready!");
-                return client;
-            }
+            Console.WriteLine("🔊 Connecting voice...");
 
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Join Error: {ex.Message}");
-            return null;
+            // 3️⃣ Connect แบบ safe
+            var client = await channel.ConnectAsync(
+                selfDeaf: false,
+                selfMute: false
+            );
+
+
+            // 4️⃣ รอ Discord sync voice state
+            await Task.Delay(800);
+
+            client.Disconnected += _ =>
+            {
+                Console.WriteLine("🔌 Voice disconnected");
+
+                _audioClients.TryRemove(
+                    channel.Guild.Id,
+                    out IAudioClient? oldClient
+                );
+
+                return Task.CompletedTask;
+            };
+
+
+            _audioClients[channel.Guild.Id] = client;
+            return client;
         }
         finally
         {
@@ -107,7 +117,6 @@ public class MusicService
         }
     }
 
-    // ===== PLAY =====
     // ===== PLAY =====
     public async Task PlayByUserIdAsync(ulong userId, string input)
     {
@@ -118,40 +127,61 @@ public class MusicService
             var u = g.GetUser(userId);
             if (u?.VoiceChannel == null) continue;
 
-            // 1. หยุดงานเก่า
-            if (_cts.TryRemove(g.Id, out var oldCts))
+            // stop old
+            if (_cts.TryRemove(g.Id, out var old))
             {
-                oldCts.Cancel();
-                oldCts.Dispose();
+                old.Cancel();
+                old.Dispose();
             }
 
             var cts = new CancellationTokenSource();
             _cts[g.Id] = cts;
 
-            // 2. เชื่อมต่อห้องเสียง (แก้ไขตรงนี้ให้เหลือประกาศตัวแปรเดียว)
-            IAudioClient? audioClient = await JoinAsync(u.VoiceChannel);
+            // 🔁 retry join voice (กัน 4006)
+            IAudioClient? audio = null;
+            for (int i = 0; i < 3; i++)
+            {
+                audio = await JoinAsync(u.VoiceChannel);
 
-            if (audioClient == null || audioClient.ConnectionState != ConnectionState.Connected)
+                if (audio != null &&
+                    audio.ConnectionState == ConnectionState.Connected)
+                {
+                    break;
+                }
+
+                Console.WriteLine($"⏳ Voice retry {i + 1}/3");
+                await Task.Delay(1000);
+            }
+
+            if (audio == null ||
+                audio.ConnectionState != ConnectionState.Connected)
             {
                 Console.WriteLine("❌ Cannot connect voice");
                 return;
             }
 
-            // 3. เริ่มงานเล่นเพลงใน Background
+            // ✅ รอ voice ready แค่ครั้งเดียว
+            if (!await WaitForVoiceReady(audio))
+            {
+                Console.WriteLine("❌ Voice not ready");
+                return;
+            }
+
             _ = Task.Run(async () =>
             {
                 try
                 {
                     var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
 
-                    // สั่งให้บอทเปิดไฟสีเขียว (Speaking)
-                    await audioClient.SetSpeakingAsync(true);
-
                     var psi = new ProcessStartInfo
                     {
                         FileName = "ffmpeg",
-                        Arguments = $"-hide_banner -loglevel error -i \"{audioUrl}\" -vn -ac 2 -ar 48000 -f s16le pipe:1",
+                        Arguments =
+                            "-hide_banner -loglevel error " +
+                            "-i \"" + audioUrl + "\" " +
+                            "-vn -ac 2 -ar 48000 -f s16le pipe:1",
                         RedirectStandardOutput = true,
+                        RedirectStandardError = true,
                         UseShellExecute = false,
                         CreateNoWindow = true
                     };
@@ -159,22 +189,51 @@ public class MusicService
                     using var ffmpeg = Process.Start(psi);
                     if (ffmpeg == null) return;
 
-                    using var discordStream = audioClient.CreatePCMStream(AudioApplication.Music, bitrate: 96000);
+                    using var discord = audio.CreatePCMStream(
+                        AudioApplication.Music,
+                        bitrate: 128000,
+                        bufferMillis: 200
+                    );
 
+                    // 🔍 DEBUG: ตรวจว่า ffmpeg มีเสียงออกจริงไหม
+                    var probeBuffer = new byte[4096];
+
+                    int bytesRead = await ffmpeg.StandardOutput.BaseStream
+                        .ReadAsync(probeBuffer.AsMemory(0, probeBuffer.Length), cts.Token);
+
+                    Console.WriteLine($"🎵 ffmpeg bytes: {bytesRead}");
+
+                    if (bytesRead <= 0)
+                    {
+                        Console.WriteLine("❌ ffmpeg ไม่มี audio output");
+                        return;
+                    }
+
+                    // เขียนเสียงก้อนแรกเข้า Discord
+                    await discord.WriteAsync(
+                        probeBuffer.AsMemory(0, bytesRead),
+                        cts.Token
+                    );
+
+                    // ▶️ stream ต่อปกติ
                     try
                     {
-                        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(discordStream, 32768, cts.Token);
+                        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
+                            discord, 32768, cts.Token
+                        );
                     }
                     finally
                     {
-                        await discordStream.FlushAsync();
-                        await audioClient.SetSpeakingAsync(false);
-                        if (!ffmpeg.HasExited) ffmpeg.Kill();
+                        await discord.FlushAsync();
+                        if (!ffmpeg.HasExited)
+                            ffmpeg.Kill();
                     }
+
                 }
+                catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Play error: {ex.Message}");
+                    Console.WriteLine($"❌ Play error: {ex}");
                 }
                 finally
                 {
@@ -204,6 +263,7 @@ public class MusicService
     public async Task SkipAsync(ulong userId)
     {
         if (_discordClient == null) return;
+
         foreach (var g in _discordClient.Guilds)
         {
             if (_cts.TryRemove(g.Id, out var cts))
@@ -212,21 +272,19 @@ public class MusicService
                 cts.Dispose();
             }
         }
-        // แก้จาก Task.CompletedTask เป็นบรรทัดนี้เพื่อลด Warning
-        await Task.Yield();
     }
 
-    public Task ToggleAsync(ulong userId)
+    public async Task ToggleAsync(ulong userId)
     {
-        return SkipAsync(userId);
+        await SkipAsync(userId);
     }
 
 
     // ===== USERS IN VOICE =====
-    public async Task<object> GetUsersInVoice(ulong userId)
+    public Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null)
-            return new { guild = "offline", users = new List<object>() };
+            return Task.FromResult<object>(new { guild = "offline", users = new List<object>() });
 
         SocketGuildUser? user = null;
         SocketGuild? guild = null;
@@ -234,21 +292,118 @@ public class MusicService
         foreach (var g in _discordClient.Guilds)
         {
             user = g.GetUser(userId);
-            if (user != null) { guild = g; break; }
+            if (user != null)
+            {
+                guild = g;
+                break;
+            }
         }
 
         if (user?.VoiceChannel == null || guild == null)
-            return new { guild = "not in voice", users = new List<object>() };
+            return Task.FromResult<object>(new { guild = "not in voice", users = new List<object>() });
 
         var channel = user.VoiceChannel;
+
         var users = guild.Users
             .Where(u => u.VoiceChannel?.Id == channel.Id)
-            .Select(u => new {
+            .Select(u => new
+            {
                 name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
                 status = u.Status.ToString().ToLower()
-            }).ToList();
+            })
+            .ToList();
 
-        return await Task.FromResult<object>(new { guild = $"{guild.Name} ({channel.Name})", users });
+        return Task.FromResult<object>(new
+        {
+            guild = $"{guild.Name} ({channel.Name})",
+            users
+        });
+    }
+}
+และ using YoutubeExplode;
+using YoutubeExplode.Search;
+using YoutubeExplode.Videos.Streams;
+
+namespace DiscordMusicBot.Music;
+
+public class YoutubeService
+{
+    private readonly YoutubeClient _youtube = new();
+    private static readonly Random _rand = new();
+
+    // ===== SEARCH =====
+    public async Task<List<object>> SearchVideosAsync(string query, int limit = 18, int offset = 0)
+    {
+        var results = new List<object>();
+        int skipped = 0;
+
+        await foreach (var video in _youtube.Search.GetVideosAsync(query))
+        {
+            if (skipped++ < offset) continue;
+
+            results.Add(new
+            {
+                title = video.Title,
+                url = video.Url,
+                thumbnail = video.Thumbnails.MaxBy(t => t.Resolution.Area)?.Url,
+                author = video.Author.ChannelTitle,
+                duration = video.Duration?.ToString(@"mm\:ss") ?? "00:00",
+                views = FormatViews(_rand.Next(100_000, 10_000_000)),
+                uploaded = "recent"
+            });
+
+            if (results.Count >= limit) break;
+        }
+
+        return results;
+    }
+
+    // ===== AUDIO STREAM (FIXED) =====
+    public async Task<string> GetAudioOnlyUrlAsync(string input)
+    {
+        string videoUrl = input;
+
+        // 🔍 search ถ้าไม่ใช่ลิงก์
+        if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
+        {
+            await foreach (var v in _youtube.Search.GetVideosAsync(input))
+            {
+                videoUrl = v.Url;
+                break;
+            }
+        }
+
+        var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
+
+        // ✅ เลือก AudioOnly ที่เสถียรที่สุด
+        var audio = manifest
+            .GetAudioOnlyStreams()
+            .OrderByDescending(s => s.Bitrate)
+            .FirstOrDefault();
+
+        if (audio == null)
+            throw new Exception("❌ ไม่พบ audio stream");
+
+        return audio.Url;
+    }
+
+    private static string FormatViews(long views)
+    {
+        if (views >= 1_000_000) return $"{views / 1_000_000D:F1}M views";
+        if (views >= 1_000) return $"{views / 1_000D:F1}K views";
+        return $"{views} views";
+    }
+
+    // ===== RESOLVE VIDEO URL =====
+    public async Task<string> ResolveVideoUrlAsync(string input)
+    {
+        if (input.Contains("youtube.com") || input.Contains("youtu.be"))
+            return input;
+
+        await foreach (var v in _youtube.Search.GetVideosAsync(input))
+            return v.Url;
+
+        throw new Exception("❌ ไม่พบวิดีโอ");
     }
 }

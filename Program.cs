@@ -16,9 +16,6 @@ class Program
         }
 
         var music = new MusicService();
-
-        // ตรวจสอบว่า WebServer.Start ต้องไม่ Block Thread หลัก
-
         _ = Task.Run(() => WebServer.Start(args, music, port));
 
         var bot = new BotService(token, music);
