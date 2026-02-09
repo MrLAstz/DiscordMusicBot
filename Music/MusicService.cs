@@ -85,8 +85,10 @@ public class MusicService
 
             // 3. รอจนกว่าจะ Connected จริงๆ
             int retry = 0;
-            while (client.ConnectionState != ConnectionState.Connected && retry < 15)
+            while (client.ConnectionState != ConnectionState.Connected && retry < 30) // เพิ่มเป็น 30 (15 วินาที)
             {
+                // เพิ่ม Log บรรทัดนี้เพื่อดูสถานะจริงตอนมันหมุน
+                Console.WriteLine($"⏳ Voice Status: {client.ConnectionState} (Retry {retry})");
                 await Task.Delay(500);
                 retry++;
             }
