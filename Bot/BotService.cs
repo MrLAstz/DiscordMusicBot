@@ -25,9 +25,9 @@ public class BotService
                              GatewayIntents.GuildVoiceStates,
             AlwaysDownloadUsers = true,
 
-            // --- เพิ่ม 2 บรรทัดนี้ลงไป ---
-            ConnectionTimeout = 30000, // เพิ่มเวลารอเชื่อมต่อเป็น 30 วินาที
-            IdentifyMaxRetries = 10    // ให้บอทพยายาม Identify ตัวเองมากขึ้น
+            // แก้ไข: ใช้แค่พารามิเตอร์ที่ระบบรองรับ
+            ConnectionTimeout = 30000,
+            HandlerTimeout = 5000     // เพิ่มตัวนี้แทนเพื่อช่วยเรื่องการตอบสนอง
         };
 
         _client = new DiscordSocketClient(config);

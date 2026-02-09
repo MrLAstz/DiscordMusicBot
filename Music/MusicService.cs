@@ -66,7 +66,6 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // 1. ตรวจสอบสถานะเดิม
             if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient? existing))
             {
                 if (existing.ConnectionState == ConnectionState.Connected)
@@ -80,26 +79,26 @@ public class MusicService
 
             Console.WriteLine($"🔊 Attempting to connect to {channel.Name}...");
 
-            // 2. แก้ไข: ลบ externalConcepts ออก (ใช้แค่ selfDeaf และ selfMute)
+            // เชื่อมต่อ
             var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // 3. รอจนกว่าจะ Connected จริงๆ
+            // วนลูปเช็คสถานะ พร้อมพิมพ์ Log ออกมาดู
             int retry = 0;
-            while (client.ConnectionState != ConnectionState.Connected && retry < 30) // เพิ่มเป็น 30 (15 วินาที)
+            while (client.ConnectionState != ConnectionState.Connected && retry < 20)
             {
-                // เพิ่ม Log บรรทัดนี้เพื่อดูสถานะจริงตอนมันหมุน
-                Console.WriteLine($"⏳ Voice Status: {client.ConnectionState} (Retry {retry})");
+                Console.WriteLine($"⏳ Voice State: {client.ConnectionState} (Wait {retry}/20)");
                 await Task.Delay(500);
                 retry++;
             }
 
             if (client.ConnectionState == ConnectionState.Connected)
             {
-                // แก้ไข Warning CS8619 โดยการระบุชัดเจนว่าเป็น IAudioClient
+                Console.WriteLine("✅ Voice Connected Successfully!");
                 _audioClients[channel.Guild.Id] = (IAudioClient)client;
                 return client;
             }
 
+            Console.WriteLine($"❌ Connection failed with state: {client.ConnectionState}");
             return null;
         }
         catch (Exception ex)
