@@ -73,20 +73,14 @@ public static class WebServer
         {
             string? url = context.Request.Query["url"];
             string? userIdStr = context.Request.Query["userId"];
+            if (string.IsNullOrEmpty(url)) return Results.BadRequest("URL is required");
 
-            if (string.IsNullOrWhiteSpace(url))
-                return Results.BadRequest(new { message = "URL is required" });
-
-            if (!ulong.TryParse(userIdStr, out ulong userId))
-                return Results.BadRequest(new { message = "User ID is required" });
-
-            await musicService.EnqueueAsync(
-                userId,
-                url,
-                "web"
-            );
-
-            return Results.Ok(new { message = "Added to queue" });
+            if (ulong.TryParse(userIdStr, out ulong userId))
+            {
+                await musicService.PlayByUserIdAsync(userId, url);
+                return Results.Ok(new { message = "Playing for user" });
+            }
+            return Results.BadRequest(new { message = "User ID is required" });
         });
 
 
