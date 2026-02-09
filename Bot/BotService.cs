@@ -34,7 +34,6 @@ public class BotService
     public async Task StartAsync()
     {
         _client.Log += LogAsync;
-        _client.Ready += RegisterCommandsAsync;
 
         await _client.LoginAsync(TokenType.Bot, _token);
         await _client.StartAsync();
