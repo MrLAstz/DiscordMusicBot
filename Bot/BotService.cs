@@ -23,7 +23,11 @@ public class BotService
                              GatewayIntents.GuildPresences |
                              GatewayIntents.MessageContent |
                              GatewayIntents.GuildVoiceStates,
-            AlwaysDownloadUsers = true
+            AlwaysDownloadUsers = true,
+
+            // --- เพิ่ม 2 บรรทัดนี้ลงไป ---
+            ConnectionTimeout = 30000, // เพิ่มเวลารอเชื่อมต่อเป็น 30 วินาที
+            IdentifyMaxRetries = 10    // ให้บอทพยายาม Identify ตัวเองมากขึ้น
         };
 
         _client = new DiscordSocketClient(config);
