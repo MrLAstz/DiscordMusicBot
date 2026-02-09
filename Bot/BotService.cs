@@ -18,11 +18,10 @@ public class BotService
 
         var config = new DiscordSocketConfig
         {
-            GatewayIntents = GatewayIntents.AllUnprivileged |
-                             GatewayIntents.GuildMembers |
-                             GatewayIntents.GuildPresences |
-                             GatewayIntents.MessageContent |
-                             GatewayIntents.GuildVoiceStates,
+            GatewayIntents = GatewayIntents.Guilds |            // เพื่อให้บอทเห็นเซิร์ฟเวอร์
+                             GatewayIntents.GuildMembers |       // เพื่อดึงรายชื่อคน (หน้าเว็บใช้)
+                             GatewayIntents.GuildVoiceStates |    // เพื่อให้บอทเข้าห้องเสียงได้
+                             GatewayIntents.MessageContent,      // ถ้าคุณต้องการอ่านข้อความ (ถ้าไม่ใช้ลบได้)
             AlwaysDownloadUsers = true
         };
 
@@ -35,6 +34,7 @@ public class BotService
     public async Task StartAsync()
     {
         _client.Log += LogAsync;
+        _client.Ready += RegisterCommandsAsync;
 
         await _client.LoginAsync(TokenType.Bot, _token);
         await _client.StartAsync();

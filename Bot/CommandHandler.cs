@@ -15,7 +15,6 @@ public class CommandHandler
         _client = client;
         _music = music;
 
-        _client.Ready += RegisterCommandsAsync;
         _client.SlashCommandExecuted += HandleSlashCommandAsync;
     }
 
