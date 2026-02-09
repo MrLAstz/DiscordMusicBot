@@ -10,28 +10,24 @@ namespace DiscordMusicBot.Music;
 public class MusicService
 {
     private readonly ConcurrentDictionary<ulong, IAudioClient> _audioClients = new();
-    private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _playTokens = new();
-    private readonly ConcurrentDictionary<ulong, MusicQueue> _queues = new();
-
+    private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _cts = new();
     private readonly SemaphoreSlim _joinLock = new(1, 1);
 
-    private DiscordSocketClient? _client;
-    private Task? _readyTask;
-
+    private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
 
-    // ===== FIX libopus (Docker / Linux) =====
+    // ===== FIX libopus (Linux / Docker / Railway) =====
     static MusicService()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             NativeLibrary.SetDllImportResolver(
                 typeof(MusicService).Assembly,
-                (name, _, _) =>
+                (libraryName, _, _) =>
                 {
-                    if (name == "opus" || name == "libopus")
+                    if (libraryName == "opus" || libraryName == "libopus")
                     {
-                        foreach (var p in new[] { "libopus.so.0", "libopus.so" })
+                        foreach (var p in new[] { "libopus.so.0", "libopus.so", "opus.so" })
                             if (NativeLibrary.TryLoad(p, out var h)) return h;
                     }
                     return IntPtr.Zero;
@@ -39,100 +35,77 @@ public class MusicService
         }
     }
 
-    // ===== Inject =====
-    public void SetDiscordClient(DiscordSocketClient client) => _client = client;
-    public void SetReadyTask(Task task) => _readyTask = task;
+    public void SetDiscordClient(DiscordSocketClient client)
+        => _discordClient = client;
 
-    private MusicQueue GetQueue(ulong guildId)
-        => _queues.GetOrAdd(guildId, _ => new MusicQueue());
-
-    // ======================================================
-    // 🎯 จุดเดียวที่รับเพลงจาก "ทุกที่" (web + /play)
-    // ======================================================
-    public async Task EnqueueAsync(ulong userId, string input, string source)
+    // ===== JOIN BY USER ID =====
+    public async Task<bool> JoinByUserIdAsync(ulong userId)
     {
-        if (_client == null) return;
-        if (_readyTask != null) await _readyTask;
+        if (_discordClient == null)
+            return false;
 
-        foreach (var guild in _client.Guilds)
+        foreach (var guild in _discordClient.Guilds)
         {
             var user = guild.GetUser(userId);
-            if (user?.VoiceChannel == null) continue;
-
-            var queue = GetQueue(guild.Id);
-
-            queue.Enqueue(new MusicTrack
+            if (user?.VoiceChannel != null)
             {
-                Input = input,
-                RequestedBy = user.Username,
-                Source = source
-            });
-
-            // ▶️ ถ้ายังไม่มี loop → start
-            if (!_playTokens.ContainsKey(guild.Id))
-            {
-                _ = PlayerLoopAsync(guild, user.VoiceChannel);
-            }
-            return;
-        }
-    }
-
-
-    // ======================================================
-    // 🔁 Player Loop (1 guild = 1 loop เท่านั้น)
-    // ======================================================
-    private async Task PlayerLoopAsync(SocketGuild guild, IVoiceChannel channel)
-    {
-        var cts = new CancellationTokenSource();
-        _playTokens[guild.Id] = cts;
-
-        try
-        {
-            var audio = await JoinAsync(channel);
-            if (audio == null) return;
-
-            var queue = GetQueue(guild.Id);
-
-            while (!cts.IsCancellationRequested &&
-                   queue.TryDequeue(out var track))
-            {
-                await PlayFfmpegAsync(audio, track!, cts.Token);
+                await JoinAsync(user.VoiceChannel);
+                return true;
             }
         }
-        finally
-        {
-            _playTokens.TryRemove(guild.Id, out _);
-        }
+
+        return false;
     }
 
-    // ======================================================
-    // 🔊 JOIN VOICE (ปลอดภัย ไม่ซ้อน)
-    // ======================================================
-    private async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
+    // ===== JOIN VOICE =====
+    public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
         await _joinLock.WaitAsync();
         try
         {
-            if (_audioClients.TryGetValue(channel.Guild.Id, out var existing) &&
+            // 1️⃣ ถ้ามี client ที่ยังใช้ได้ → ใช้ต่อ
+            if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient existing) &&
                 existing.ConnectionState == ConnectionState.Connected)
             {
                 return existing;
             }
 
-            if (_audioClients.TryRemove(channel.Guild.Id, out var old))
+            // 2️⃣ ปิด session เก่าแบบ "รอจริง"
+            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old))
             {
-                try { await old.StopAsync(); old.Dispose(); } catch { }
+                try
+                {
+                    await old.StopAsync();
+                    await Task.Delay(300); // สำคัญมาก
+                    old.Dispose();
+                }
+                catch { }
             }
 
-            var client = await channel.ConnectAsync(selfMute: false, selfDeaf: false);
+            Console.WriteLine("🔊 Connecting voice...");
 
-            var sw = Stopwatch.StartNew();
-            while (client.ConnectionState != ConnectionState.Connected)
+            // 3️⃣ Connect แบบ safe
+            var client = await channel.ConnectAsync(
+                selfDeaf: false,
+                selfMute: false
+            );
+
+
+            // 4️⃣ รอ Discord sync voice state
+            await Task.Delay(800);
+
+            client.Disconnected += _ =>
             {
-                if (sw.ElapsedMilliseconds > 10_000)
-                    return null;
-                await Task.Delay(200);
-            }
+                Console.WriteLine("🔌 Voice disconnected");
+
+                _audioClients.TryRemove(
+                    channel.Guild.Id,
+                    out IAudioClient? oldClient
+                );
+
+                return Task.CompletedTask;
+            };
+
 
             _audioClients[channel.Guild.Id] = client;
             return client;
@@ -143,112 +116,207 @@ public class MusicService
         }
     }
 
-    // ======================================================
-    // 🎵 FFmpeg → Discord PCM
-    // ======================================================
-    private async Task PlayFfmpegAsync(IAudioClient audio, MusicTrack track, CancellationToken token)
+    // ===== PLAY =====
+    public async Task PlayByUserIdAsync(ulong userId, string input)
     {
-        try
+        if (_discordClient == null) return;
+
+        foreach (var g in _discordClient.Guilds)
         {
-            var videoId = await _youtube.ResolveVideoIdAsync(track.Input);
-            var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoId);
-            var streamInfo = manifest.GetAudioOnlyStreams().GetWithHighestBitrate();
+            var u = g.GetUser(userId);
+            if (u?.VoiceChannel == null) continue;
 
-            // ดึง Stream มาไว้ในตัวแปรก่อน
-            using var youtubeStream = await _youtube.Videos.Streams.GetAsync(streamInfo);
-
-            var psi = new ProcessStartInfo
+            // stop old
+            if (_cts.TryRemove(g.Id, out var old))
             {
-                FileName = "ffmpeg", // หรือ "/usr/bin/ffmpeg"
-                Arguments = "-hide_banner -loglevel panic -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1",
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+                old.Cancel();
+                old.Dispose();
+            }
 
-            using var ffmpeg = Process.Start(psi);
-            if (ffmpeg == null) return;
+            var cts = new CancellationTokenSource();
+            _cts[g.Id] = cts;
 
-            using var discord = audio.CreatePCMStream(AudioApplication.Music);
-            await audio.SetSpeakingAsync(true);
+            // 🔁 retry join voice (กัน 4006)
+            IAudioClient? audio = null;
+            for (int i = 0; i < 3; i++)
+            {
+                audio = await JoinAsync(u.VoiceChannel);
 
-            // Task สำหรับป้อนข้อมูลเข้า FFmpeg
-            var fillFfmpegTask = youtubeStream.CopyToAsync(ffmpeg.StandardInput.BaseStream, token)
-                .ContinueWith(_ => ffmpeg.StandardInput.Close()); // ต้องปิดไม่งั้น FFmpeg ไม่หยุดรอ
-
-            // Task สำหรับดึงข้อมูลจาก FFmpeg ไป Discord
-            var sendToDiscordTask = ffmpeg.StandardOutput.BaseStream.CopyToAsync(discord, token);
-
-            await Task.WhenAny(fillFfmpegTask, sendToDiscordTask);
-        }
-        catch (Exception ex)
-        {
-            // แนะนำให้พ่น Error ออกมาดูใน Docker Logs
-            Console.WriteLine($"[MusicService Error]: {ex.Message}");
-        }
-        finally
-        {
-            await audio.SetSpeakingAsync(false);
-        }
-    }
-
-    // ======================================================
-    // ⏭ SKIP
-    // ======================================================
-    public Task SkipAsync(ulong userId)
-    {
-        foreach (var kv in _playTokens)
-        {
-            kv.Value.Cancel();
-            kv.Value.Dispose();
-        }
-        _playTokens.Clear();
-        return Task.CompletedTask;
-    }
-
-    // ======================================================
-    // 🔘 TOGGLE (ตอนนี้ = stop)
-    // ======================================================
-    public Task ToggleAsync(ulong userId)
-        => SkipAsync(userId);
-
-    public void TogglePause(ulong userId)
-    {
-        _player.Toggle();
-    }
-
-    // ======================================================
-    // 👥 STATUS (frontend)
-    // ======================================================
-    public async Task<object> GetUsersInVoice(ulong userId)
-    {
-        if (_client == null) return new { guild = "offline", users = new List<object>() };
-        if (_readyTask != null) await _readyTask;
-
-        foreach (var g in _client.Guilds)
-        {
-            var user = g.GetUser(userId);
-            if (user?.VoiceChannel == null) continue;
-
-            var channel = user.VoiceChannel;
-
-            var users = g.Users
-                .Where(u => u.VoiceChannel?.Id == channel.Id)
-                .Select(u => new
+                if (audio != null &&
+                    audio.ConnectionState == ConnectionState.Connected)
                 {
-                    name = u.GlobalName ?? u.Username,
-                    avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
-                    status = u.Status.ToString().ToLower()
-                });
+                    break;
+                }
 
-            return new
+                Console.WriteLine($"⏳ Voice retry {i + 1}/3");
+                await Task.Delay(1000);
+            }
+
+            if (audio == null ||
+                audio.ConnectionState != ConnectionState.Connected)
             {
-                guild = $"{g.Name} ({channel.Name})",
-                users
-            };
+                Console.WriteLine("❌ Cannot connect voice");
+                return;
+            }
+
+            // ✅ รอ voice ready แค่ครั้งเดียว
+            if (!await WaitForVoiceReady(audio))
+            {
+                Console.WriteLine("❌ Voice not ready");
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
+
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "ffmpeg",
+                        Arguments =
+                            "-hide_banner -loglevel error " +
+                            "-i \"" + audioUrl + "\" " +
+                            "-vn -ac 2 -ar 48000 -f s16le pipe:1",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using var ffmpeg = Process.Start(psi);
+                    if (ffmpeg == null) return;
+
+                    using var discord = audio.CreatePCMStream(
+                        AudioApplication.Music,
+                        bitrate: 128000,
+                        bufferMillis: 200
+                    );
+
+                    // 🔍 DEBUG: ตรวจว่า ffmpeg มีเสียงออกจริงไหม
+                    var probeBuffer = new byte[4096];
+
+                    int bytesRead = await ffmpeg.StandardOutput.BaseStream
+                        .ReadAsync(probeBuffer.AsMemory(0, probeBuffer.Length), cts.Token);
+
+                    Console.WriteLine($"🎵 ffmpeg bytes: {bytesRead}");
+
+                    if (bytesRead <= 0)
+                    {
+                        Console.WriteLine("❌ ffmpeg ไม่มี audio output");
+                        return;
+                    }
+
+                    // เขียนเสียงก้อนแรกเข้า Discord
+                    await discord.WriteAsync(
+                        probeBuffer.AsMemory(0, bytesRead),
+                        cts.Token
+                    );
+
+                    // ▶️ stream ต่อปกติ
+                    try
+                    {
+                        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
+                            discord, 32768, cts.Token
+                        );
+                    }
+                    finally
+                    {
+                        await discord.FlushAsync();
+                        if (!ffmpeg.HasExited)
+                            ffmpeg.Kill();
+                    }
+
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Play error: {ex}");
+                }
+                finally
+                {
+                    _cts.TryRemove(g.Id, out _);
+                }
+            }, cts.Token);
+
+            return;
+        }
+    }
+
+
+    private async Task<bool> WaitForVoiceReady(IAudioClient client, int timeoutMs = 8000)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < timeoutMs)
+        {
+            if (client.ConnectionState == ConnectionState.Connected)
+                return true;
+
+            await Task.Delay(200);
+        }
+        return false;
+    }
+
+    // ===== SKIP =====
+    public async Task SkipAsync(ulong userId)
+    {
+        if (_discordClient == null) return;
+
+        foreach (var g in _discordClient.Guilds)
+        {
+            if (_cts.TryRemove(g.Id, out var cts))
+            {
+                cts.Cancel();
+                cts.Dispose();
+            }
+        }
+    }
+
+    public async Task ToggleAsync(ulong userId)
+    {
+        await SkipAsync(userId);
+    }
+
+
+    // ===== USERS IN VOICE =====
+    public Task<object> GetUsersInVoice(ulong userId)
+    {
+        if (_discordClient == null)
+            return Task.FromResult<object>(new { guild = "offline", users = new List<object>() });
+
+        SocketGuildUser? user = null;
+        SocketGuild? guild = null;
+
+        foreach (var g in _discordClient.Guilds)
+        {
+            user = g.GetUser(userId);
+            if (user != null)
+            {
+                guild = g;
+                break;
+            }
         }
 
-        return new { guild = "not in voice", users = new List<object>() };
+        if (user?.VoiceChannel == null || guild == null)
+            return Task.FromResult<object>(new { guild = "not in voice", users = new List<object>() });
+
+        var channel = user.VoiceChannel;
+
+        var users = guild.Users
+            .Where(u => u.VoiceChannel?.Id == channel.Id)
+            .Select(u => new
+            {
+                name = u.GlobalName ?? u.Username,
+                avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
+                status = u.Status.ToString().ToLower()
+            })
+            .ToList();
+
+        return Task.FromResult<object>(new
+        {
+            guild = $"{guild.Name} ({channel.Name})",
+            users
+        });
     }
 }

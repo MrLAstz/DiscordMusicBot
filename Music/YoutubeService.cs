@@ -1,26 +1,15 @@
 ﻿using YoutubeExplode;
 using YoutubeExplode.Search;
-using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
 
 namespace DiscordMusicBot.Music;
 
-/// <summary>
-/// 📺 YouTube backend
-/// - search วิดีโอ
-/// - resolve keyword / url
-/// - ดึง audio-only stream ไปป้อน ffmpeg
-/// </summary>
 public class YoutubeService
 {
-    // 🚀 client หลักของ YoutubeExplode
     private readonly YoutubeClient _youtube = new();
-
-    // 🎲 fake views เอาไปโชว์ UI
     private static readonly Random _rand = new();
 
-    // ================= SEARCH =================
-    // 🔍 ค้นวิดีโอจาก keyword
+    // ===== SEARCH =====
     public async Task<List<object>> SearchVideosAsync(string query, int limit = 18, int offset = 0)
     {
         var results = new List<object>();
@@ -28,71 +17,70 @@ public class YoutubeService
 
         await foreach (var video in _youtube.Search.GetVideosAsync(query))
         {
-            // ⏭ ข้ามตาม offset
             if (skipped++ < offset) continue;
 
             results.Add(new
             {
                 title = video.Title,
-                url = $"https://www.youtube.com/watch?v={video.Id}",
-                thumbnail = video.Thumbnails
-                    .OrderByDescending(t => t.Resolution.Area)
-                    .FirstOrDefault()?.Url,
+                url = video.Url,
+                thumbnail = video.Thumbnails.MaxBy(t => t.Resolution.Area)?.Url,
                 author = video.Author.ChannelTitle,
                 duration = video.Duration?.ToString(@"mm\:ss") ?? "00:00",
                 views = FormatViews(_rand.Next(100_000, 10_000_000)),
                 uploaded = "recent"
             });
 
-            // 🧯 กันโหลดเกิน
-            if (results.Count >= limit)
-                break;
+            if (results.Count >= limit) break;
         }
 
         return results;
     }
 
-    // ================= AUDIO STREAM =================
-    // 🎧 เอา URL audio-only ไปให้ ffmpeg: -i "<url>"
-    public async Task<string> GetAudioOnlyUrlAsync(VideoId videoId)
+    // ===== AUDIO STREAM (FIXED) =====
+    public async Task<string> GetAudioOnlyUrlAsync(string input)
     {
-        var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoId);
+        string videoUrl = input;
 
+        // 🔍 search ถ้าไม่ใช่ลิงก์
+        if (!input.Contains("youtube.com") && !input.Contains("youtu.be"))
+        {
+            await foreach (var v in _youtube.Search.GetVideosAsync(input))
+            {
+                videoUrl = v.Url;
+                break;
+            }
+        }
+
+        var manifest = await _youtube.Videos.Streams.GetManifestAsync(videoUrl);
+
+        // ✅ เลือก AudioOnly ที่เสถียรที่สุด
         var audio = manifest
             .GetAudioOnlyStreams()
             .OrderByDescending(s => s.Bitrate)
-            .FirstOrDefault()
-            ?? throw new Exception("❌ ไม่พบ audio stream");
+            .FirstOrDefault();
+
+        if (audio == null)
+            throw new Exception("❌ ไม่พบ audio stream");
 
         return audio.Url;
     }
-    
-    // ================= RESOLVE VIDEO =================
-    // 🧠 รับได้ทั้ง YouTube URL และ keyword
-    public async Task<VideoId> ResolveVideoIdAsync(string input)
-    {
-        // URL → parse ตรง
-        if (input.Contains("youtube.com") || input.Contains("youtu.be"))
-            return VideoId.Parse(input);
 
-        // keyword → search เอาตัวแรก
-        await foreach (var v in _youtube.Search.GetVideosAsync(input))
-            return v.Id;
-
-        throw new Exception("❌ ไม่พบวิดีโอ");
-    }
-
-    // ================= UTIL =================
-    // 👁 แปลง view ให้อ่านง่าย
     private static string FormatViews(long views)
     {
         if (views >= 1_000_000) return $"{views / 1_000_000D:F1}M views";
         if (views >= 1_000) return $"{views / 1_000D:F1}K views";
         return $"{views} views";
     }
-    public async Task<List<MusicTrack>> GetPlaylistAsync(string url)
-    {
-        // ดึง playlist → return List<MusicTrack>
-    }
 
+    // ===== RESOLVE VIDEO URL =====
+    public async Task<string> ResolveVideoUrlAsync(string input)
+    {
+        if (input.Contains("youtube.com") || input.Contains("youtu.be"))
+            return input;
+
+        await foreach (var v in _youtube.Search.GetVideosAsync(input))
+            return v.Url;
+
+        throw new Exception("❌ ไม่พบวิดีโอ");
+    }
 }
