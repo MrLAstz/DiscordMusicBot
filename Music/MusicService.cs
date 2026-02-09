@@ -19,6 +19,11 @@ public class MusicService
     private DiscordSocketClient? _discordClient;
     private readonly YoutubeService _youtube = new();
 
+    public MusicService()
+    {
+        // 🚩 วางตรงนี้แทนได้เหมือนกันครับ มันจะพิมพ์ออก Log ตอน Service นี้ถูกสร้าง
+        Console.WriteLine($"🚀 Discord.Net Version: {Discord.DiscordConfig.Version}");
+    }
     // ===== FIX libopus (Linux / Docker / Railway) =====
     static MusicService()
     {
