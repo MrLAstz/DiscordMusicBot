@@ -109,6 +109,7 @@ public class MusicService
     }
 
     // ===== PLAY =====
+    // ===== PLAY =====
     public async Task PlayByUserIdAsync(ulong userId, string input)
     {
         if (_discordClient == null) return;
@@ -118,66 +119,40 @@ public class MusicService
             var u = g.GetUser(userId);
             if (u?.VoiceChannel == null) continue;
 
-            // stop old
-            if (_cts.TryRemove(g.Id, out var old))
+            // 1. หยุดงานเก่า
+            if (_cts.TryRemove(g.Id, out var oldCts))
             {
-                old.Cancel();
-                old.Dispose();
+                oldCts.Cancel();
+                oldCts.Dispose();
             }
 
             var cts = new CancellationTokenSource();
             _cts[g.Id] = cts;
 
-            // 🔁 retry join voice (กัน 4006)
-            IAudioClient? audio = null;
-            for (int i = 0; i < 3; i++)
+            // 2. เชื่อมต่อห้องเสียง (แก้ไขตรงนี้ให้เหลือประกาศตัวแปรเดียว)
+            IAudioClient? audioClient = await JoinAsync(u.VoiceChannel);
+
+            if (audioClient == null || audioClient.ConnectionState != ConnectionState.Connected)
             {
-                audio = await JoinAsync(u.VoiceChannel);
-
-                if (audio != null &&
-                    audio.ConnectionState == ConnectionState.Connected)
-                {
-                    break;
-                }
-
-                Console.WriteLine($"⏳ Voice retry {i + 1}/3");
-                await Task.Delay(1000);
-            }
-
-            // ในเมธอด PlayByUserIdAsync ช่วงที่หา IAudioClient audio
-            IAudioClient? audio = await JoinAsync(u.VoiceChannel);
-
-            if (audio == null || audio.ConnectionState != ConnectionState.Connected)
-            {
-                Console.WriteLine("❌ Voice Client is not connected. Skipping play.");
+                Console.WriteLine("❌ Cannot connect voice");
                 return;
             }
 
-            // ก่อนเริ่ม stream ให้เรียกใช้ตัวนี้เสมอ
-            await audio.SetSpeakingAsync(true);
-
-            // ✅ รอ voice ready แค่ครั้งเดียว
-            if (!await WaitForVoiceReady(audio))
-            {
-                Console.WriteLine("❌ Voice not ready");
-                return;
-            }
-
+            // 3. เริ่มงานเล่นเพลงใน Background
             _ = Task.Run(async () =>
             {
                 try
                 {
                     var audioUrl = await _youtube.GetAudioOnlyUrlAsync(input);
 
+                    // สั่งให้บอทเปิดไฟสีเขียว (Speaking)
+                    await audioClient.SetSpeakingAsync(true);
+
                     var psi = new ProcessStartInfo
                     {
                         FileName = "ffmpeg",
-                        Arguments =
-                            "-hide_banner -loglevel error " +
-                            "-i \"" + audioUrl + "\" " +
-                            "-vn -ac 2 -ar 48000 -f s16le pipe:1",
+                        Arguments = $"-hide_banner -loglevel error -i \"{audioUrl}\" -vn -ac 2 -ar 48000 -f s16le pipe:1",
                         RedirectStandardOutput = true,
-                        RedirectStandardError = true,
                         UseShellExecute = false,
                         CreateNoWindow = true
                     };
@@ -185,56 +160,22 @@ public class MusicService
                     using var ffmpeg = Process.Start(psi);
                     if (ffmpeg == null) return;
 
-                    // --- จุดที่ต้องเพิ่ม/แก้ไข ---
-                    // 1. สั่งให้บอทเปิดไมค์ (Speaking State)
-                    await audio.SetSpeakingAsync(true);
+                    using var discordStream = audioClient.CreatePCMStream(AudioApplication.Music, bitrate: 96000);
 
-                    using var discord = audio.CreatePCMStream(
-                        AudioApplication.Music,
-                        bitrate: 96000,
-                        bufferMillis: 200
-                    );
-
-                    // 🔍 DEBUG: ตรวจว่า ffmpeg มีเสียงออกจริงไหม
-                    var probeBuffer = new byte[4096];
-
-                    int bytesRead = await ffmpeg.StandardOutput.BaseStream
-                        .ReadAsync(probeBuffer.AsMemory(0, probeBuffer.Length), cts.Token);
-
-                    Console.WriteLine($"🎵 ffmpeg bytes: {bytesRead}");
-
-                    if (bytesRead <= 0)
-                    {
-                        Console.WriteLine("❌ ffmpeg ไม่มี audio output");
-                        return;
-                    }
-
-                    // เขียนเสียงก้อนแรกเข้า Discord
-                    await discord.WriteAsync(
-                        probeBuffer.AsMemory(0, bytesRead),
-                        cts.Token
-                    );
-
-                    // ▶️ stream ต่อปกติ
                     try
                     {
-                        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
-                            discord, 32768, cts.Token
-                        );
+                        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(discordStream, 32768, cts.Token);
                     }
                     finally
                     {
-                        await discord.FlushAsync();
-                        await audio.SetSpeakingAsync(false); // ปิดไมค์บอท
-                        if (!ffmpeg.HasExited)
-                            ffmpeg.Kill();
+                        await discordStream.FlushAsync();
+                        await audioClient.SetSpeakingAsync(false);
+                        if (!ffmpeg.HasExited) ffmpeg.Kill();
                     }
-
                 }
-                catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Play error: {ex}");
+                    Console.WriteLine($"❌ Play error: {ex.Message}");
                 }
                 finally
                 {
@@ -282,10 +223,10 @@ public class MusicService
 
 
     // ===== USERS IN VOICE =====
-    public Task<object> GetUsersInVoice(ulong userId)
+    public async Task<object> GetUsersInVoice(ulong userId)
     {
         if (_discordClient == null)
-            return Task.FromResult<object>(new { guild = "offline", users = new List<object>() });
+            return new { guild = "offline", users = new List<object>() };
 
         SocketGuildUser? user = null;
         SocketGuild? guild = null;
@@ -301,7 +242,8 @@ public class MusicService
         }
 
         if (user?.VoiceChannel == null || guild == null)
-            return Task.FromResult<object>(new { guild = "not in voice", users = new List<object>() });
+            await Task.CompletedTask;
+        return Task.FromResult<object>(new { guild = "not in voice", users = new List<object>() });
 
         var channel = user.VoiceChannel;
 
