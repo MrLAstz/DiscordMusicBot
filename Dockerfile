@@ -11,13 +11,11 @@ RUN dotnet publish -c Release -o /app --no-restore
 # ---------- RUNTIME ----------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
+# ปรับส่วน RUN ใน Dockerfile เป็นแบบนี้
 RUN apt-get update && apt-get install -y \
-    libopus0 \
-    libsodium-dev \
     ffmpeg \
-    && ln -s /usr/lib/x86_64-linux-gnu/libsodium.so /usr/lib/libsodium.so \
-    && ln -s /usr/lib/x86_64-linux-gnu/libopus.so.0 /usr/lib/libopus.so \
-    && ln -s /usr/lib/x86_64-linux-gnu/libopus.so.0 /usr/lib/opus.so \
+    libopus-dev \
+    libsodium-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

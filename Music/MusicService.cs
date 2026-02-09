@@ -178,10 +178,8 @@ public class MusicService
                     var psi = new ProcessStartInfo
                     {
                         FileName = "ffmpeg",
-                        Arguments =
-                            "-hide_banner -loglevel error " +
-                            "-i \"" + audioUrl + "\" " +
-                            "-vn -ac 2 -ar 48000 -f s16le pipe:1",
+                        // เปลี่ยน Arguments เป็นแบบนี้ (ใช้ double quotes แทน)
+                        Arguments = $"-hide_banner -loglevel error -i \"{audioUrl}\" -vn -ac 2 -ar 48000 -f s16le pipe:1",
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         UseShellExecute = false,
