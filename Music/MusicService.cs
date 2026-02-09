@@ -66,28 +66,26 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // 1. ถ้าเชื่อมต่ออยู่แล้ว ให้ส่งคืนเลย
+            // 1. ตรวจสอบสถานะเดิม
             if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient? existing))
             {
                 if (existing.ConnectionState == ConnectionState.Connected)
                     return existing;
 
-                // ถ้ามันกำลัง "ค้าง" (Connecting/Disconnecting) ให้ล้างทิ้ง
                 try { await existing.StopAsync(); } catch { }
                 existing.Dispose();
                 _audioClients.TryRemove(channel.Guild.Id, out _);
-                await Task.Delay(1000); // รอให้ Discord เคลียร์ State
+                await Task.Delay(1000);
             }
 
             Console.WriteLine($"🔊 Attempting to connect to {channel.Name}...");
 
-            // 2. ใช้คำสั่ง Connect แบบกำหนด Timeout และปิดระบบบางอย่างเพื่อความเร็ว
-            // ปรับ selfDeaf เป็น true เพื่อลดภาระการรับข้อมูล (เราแค่จะเปิดเพลง)
-            var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false, externalConcepts: false);
+            // 2. แก้ไข: ลบ externalConcepts ออก (ใช้แค่ selfDeaf และ selfMute)
+            var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // 3. สำคัญ: รอจนกว่า ConnectionState จะเป็น Connected จริงๆ
+            // 3. รอจนกว่าจะ Connected จริงๆ
             int retry = 0;
-            while (client.ConnectionState != ConnectionState.Connected && retry < 10)
+            while (client.ConnectionState != ConnectionState.Connected && retry < 15)
             {
                 await Task.Delay(500);
                 retry++;
@@ -95,7 +93,8 @@ public class MusicService
 
             if (client.ConnectionState == ConnectionState.Connected)
             {
-                _audioClients[channel.Guild.Id] = client;
+                // แก้ไข Warning CS8619 โดยการระบุชัดเจนว่าเป็น IAudioClient
+                _audioClients[channel.Guild.Id] = (IAudioClient)client;
                 return client;
             }
 
