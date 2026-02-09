@@ -188,9 +188,13 @@ public class MusicService
                     using var ffmpeg = Process.Start(psi);
                     if (ffmpeg == null) return;
 
+                    // --- จุดที่ต้องเพิ่ม/แก้ไข ---
+                    // 1. สั่งให้บอทเปิดไมค์ (Speaking State)
+                    await audio.SetSpeakingAsync(true);
+
                     using var discord = audio.CreatePCMStream(
                         AudioApplication.Music,
-                        bitrate: 128000,
+                        bitrate: 96000,
                         bufferMillis: 200
                     );
 
@@ -224,6 +228,7 @@ public class MusicService
                     finally
                     {
                         await discord.FlushAsync();
+                        await audio.SetSpeakingAsync(false); // ปิดไมค์บอท
                         if (!ffmpeg.HasExited)
                             ffmpeg.Kill();
                     }
