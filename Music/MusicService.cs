@@ -66,39 +66,33 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
+            // 1. ถ้าเชื่อมต่ออยู่แล้ว ให้ส่งคืนเลย
             if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient? existing))
             {
                 if (existing.ConnectionState == ConnectionState.Connected)
                     return existing;
 
+                // ถ้าสถานะไม่ปกติ ให้ล้างทิ้งก่อนเชื่อมใหม่
                 try { await existing.StopAsync(); } catch { }
                 existing.Dispose();
                 _audioClients.TryRemove(channel.Guild.Id, out _);
-                await Task.Delay(1000);
             }
 
-            Console.WriteLine($"🔊 Attempting to connect to {channel.Name}...");
+            Console.WriteLine($"🔊 Connecting to {channel.Name} (Version 3.18.0)...");
 
-            // เชื่อมต่อ
+            // 2. เชื่อมต่อ (เวอร์ชันใหม่จะจัดการ Encryption ให้เองโดยอัตโนมัติ)
             var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // วนลูปเช็คสถานะ พร้อมพิมพ์ Log ออกมาดู
-            int retry = 0;
-            while (client.ConnectionState != ConnectionState.Connected && retry < 20)
-            {
-                Console.WriteLine($"⏳ Voice State: {client.ConnectionState} (Wait {retry}/20)");
-                await Task.Delay(500);
-                retry++;
-            }
+            // 3. ใส่ Delay เล็กน้อยเพื่อให้แน่ใจว่า Internal State ของ Discord.Net อัปเดตครบ
+            await Task.Delay(1000);
 
             if (client.ConnectionState == ConnectionState.Connected)
             {
-                Console.WriteLine("✅ Voice Connected Successfully!");
-                _audioClients[channel.Guild.Id] = (IAudioClient)client;
+                Console.WriteLine("✅ Voice Connected!");
+                _audioClients[channel.Guild.Id] = client;
                 return client;
             }
 
-            Console.WriteLine($"❌ Connection failed with state: {client.ConnectionState}");
             return null;
         }
         catch (Exception ex)
