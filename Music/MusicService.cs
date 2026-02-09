@@ -77,15 +77,6 @@ public class MusicService
         }
     }
 
-    public IEnumerable<object> GetQueue(ulong guildId)
-    {
-        var q = GetQueue(guildId);
-        return q.Select(t => new {
-            title = t.Title,
-            thumbnail = t.Thumbnail,
-            requestedBy = t.RequestedBy
-        });
-    }
 
     // ======================================================
     // 🔁 Player Loop (1 guild = 1 loop เท่านั้น)
