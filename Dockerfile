@@ -2,16 +2,18 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
+# ล้าง Cache ของ NuGet และดึง Library ใหม่ 100%
 COPY DiscordMusicBot.csproj ./
 RUN dotnet restore --no-cache
 
 COPY . .
-RUN dotnet publish -c Release -o /app
+# สั่ง Publish โดยบังคับให้ตรวจสอบการอ้างอิงใหม่ทั้งหมด
+RUN dotnet publish -c Release -o /app --no-restore
 
-# ---------- RUNTIME ---------- (แก้เริ่มจากตรงนี้ครับ)
+# ---------- RUNTIME ----------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
-# ติดตั้ง libopus และสร้างทางลัด (Symbolic Link) เพื่อให้บอทหาไฟล์เจอแน่นอน
+# ติดตั้ง libopus และสร้าง Symbolic Link (ทางลัด) ให้ระบบมองเห็นไฟล์
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libopus0 \
