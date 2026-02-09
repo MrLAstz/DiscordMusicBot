@@ -66,28 +66,45 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
+            // 1. ถ้าเชื่อมต่ออยู่แล้ว ให้ส่งคืนเลย
             if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient? existing))
             {
-                // ถ้าเชื่อมต่ออยู่ หรือ กำลังเชื่อมต่อ ให้ใช้ตัวเดิม ไม่ต้อง Connect ใหม่
-                if (existing.ConnectionState == ConnectionState.Connected ||
-                    existing.ConnectionState == ConnectionState.Connecting)
-                {
+                if (existing.ConnectionState == ConnectionState.Connected)
                     return existing;
-                }
+
+                // ถ้ามันกำลัง "ค้าง" (Connecting/Disconnecting) ให้ล้างทิ้ง
+                try { await existing.StopAsync(); } catch { }
+                existing.Dispose();
+                _audioClients.TryRemove(channel.Guild.Id, out _);
+                await Task.Delay(1000); // รอให้ Discord เคลียร์ State
             }
 
-            // ล้าง Session เก่า (ถ้ามี)
-            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old))
+            Console.WriteLine($"🔊 Attempting to connect to {channel.Name}...");
+
+            // 2. ใช้คำสั่ง Connect แบบกำหนด Timeout และปิดระบบบางอย่างเพื่อความเร็ว
+            // ปรับ selfDeaf เป็น true เพื่อลดภาระการรับข้อมูล (เราแค่จะเปิดเพลง)
+            var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false, externalConcepts: false);
+
+            // 3. สำคัญ: รอจนกว่า ConnectionState จะเป็น Connected จริงๆ
+            int retry = 0;
+            while (client.ConnectionState != ConnectionState.Connected && retry < 10)
             {
-                try { await old.StopAsync(); } catch { }
-                old.Dispose();
-                await Task.Delay(1000); // เพิ่มเวลาเป็น 1 วินาทีเพื่อให้ Discord เคลียร์ State
+                await Task.Delay(500);
+                retry++;
             }
 
-            Console.WriteLine($"🔊 Connecting to {channel.Name}...");
-            var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
-            _audioClients[channel.Guild.Id] = client;
-            return client;
+            if (client.ConnectionState == ConnectionState.Connected)
+            {
+                _audioClients[channel.Guild.Id] = client;
+                return client;
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Join Error: {ex.Message}");
+            return null;
         }
         finally
         {
