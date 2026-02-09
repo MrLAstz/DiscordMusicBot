@@ -2,19 +2,22 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# 1. ล้าง Cache NuGet และดึง Library 3.18.0 ของจริงมาใหม่
+# เพิ่มบรรทัดนี้: ล้าง Cache ของระบบ NuGet ในเครื่อง Build ให้เกลี้ยง
+RUN dotnet nuget locals all --clear 
+
+# 1. ดึง Library ใหม่ 100%
 COPY DiscordMusicBot.csproj ./
 RUN dotnet restore --no-cache
 
 COPY . .
 
-# 2. ***จุดสำคัญ***: ลบ --no-restore ออก เพื่อให้มัน Compile ด้วย Library ใหม่ล่าสุดที่เพิ่งดึงมา
+# 2. คอมไพล์ใหม่โดยไม่ใช้ของเก่าค้างคา
 RUN dotnet publish -c Release -o /app
 
 # ---------- RUNTIME ----------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
-# 3. ติดตั้ง Library พื้นฐานสำหรับเสียง
+# 3. ติดตั้ง Library พื้นฐานสำหรับเสียง (คงเดิมไว้เพราะถูกต้องแล้ว)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libopus0 \
