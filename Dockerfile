@@ -2,7 +2,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# เพิ่มบรรทัดนี้: ล้าง Cache ของระบบ NuGet ในเครื่อง Build ให้เกลี้ยง
+# ล้าง Cache ของระบบ NuGet ในเครื่อง Build ให้เกลี้ยง
 RUN dotnet nuget locals all --clear 
 
 # 1. ดึง Library ใหม่ 100%
@@ -11,13 +11,14 @@ RUN dotnet restore --no-cache
 
 COPY . .
 
-# 2. คอมไพล์ใหม่โดยไม่ใช้ของเก่าค้างคา
-RUN dotnet publish -c Release -o /app
+# 2. แก้ไขตรงนี้: สั่งลบโฟลเดอร์ที่อาจค้างมาจากเครื่องเรา และสั่งคอมไพล์ใหม่แบบ Clean
+RUN rm -rf bin obj && \
+    dotnet publish -c Release -o /app /p:UseAppHost=false
 
 # ---------- RUNTIME ----------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
-# 3. ติดตั้ง Library พื้นฐานสำหรับเสียง (คงเดิมไว้เพราะถูกต้องแล้ว)
+# 3. ติดตั้ง Library พื้นฐานสำหรับเสียง
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libopus0 \
@@ -28,7 +29,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY --from=build /app .
-
+ะ
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
 
 ENTRYPOINT ["dotnet", "DiscordMusicBot.dll"]
