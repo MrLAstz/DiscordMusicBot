@@ -63,52 +63,44 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // 1️⃣ ถ้ามี client ที่ยังใช้ได้ → ใช้ต่อ
-            if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient existing) &&
-                existing.ConnectionState == ConnectionState.Connected)
+            // 1. ตรวจสอบว่ามี Session เดิมที่ใช้งานได้อยู่แล้วไหม
+            if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient? existing))
             {
-                return existing;
+                if (existing.ConnectionState == ConnectionState.Connected)
+                    return existing;
+
+                // ถ้าค้างอยู่แต่ไม่ Connected ให้พยายาม Stop และเตะทิ้ง
+                try { await existing.StopAsync(); } catch { }
+                _audioClients.TryRemove(channel.Guild.Id, out _);
             }
 
-            // 2️⃣ ปิด session เก่าแบบ "รอจริง"
-            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? old))
+            Console.WriteLine($"🔊 Attempting to connect to {channel.Name}...");
+
+            // 2. Connect ใหม่ (สำคัญ: Discord.Net บางเวอร์ชันต้องการให้ Disconnect ก่อนถ้าจะย้ายห้อง)
+            // แต่ในกรณี 4006 เราจะลอง Connect เลยโดยใช้หน่วงเวลาช่วย
+            var client = await channel.ConnectAsync(selfDeaf: false, selfMute: false);
+
+            // 3. รอให้สถานะนิ่งสักพัก (ป้องกันการส่งข้อมูลเร็วเกินไปจนโดน 4006)
+            int timeout = 0;
+            while (client.ConnectionState != ConnectionState.Connected && timeout < 25)
             {
-                try
-                {
-                    await old.StopAsync();
-                    await Task.Delay(300); // สำคัญมาก
-                    old.Dispose();
-                }
-                catch { }
+                await Task.Delay(200);
+                timeout++;
             }
 
-            Console.WriteLine("🔊 Connecting voice...");
-
-            // 3️⃣ Connect แบบ safe
-            var client = await channel.ConnectAsync(
-                selfDeaf: false,
-                selfMute: false
-            );
-
-
-            // 4️⃣ รอ Discord sync voice state
-            await Task.Delay(800);
-
-            client.Disconnected += _ =>
+            if (client.ConnectionState == ConnectionState.Connected)
             {
-                Console.WriteLine("🔌 Voice disconnected");
+                _audioClients[channel.Guild.Id] = client;
+                Console.WriteLine("✅ Voice Connected and Ready!");
+                return client;
+            }
 
-                _audioClients.TryRemove(
-                    channel.Guild.Id,
-                    out IAudioClient? oldClient
-                );
-
-                return Task.CompletedTask;
-            };
-
-
-            _audioClients[channel.Guild.Id] = client;
-            return client;
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Join Error: {ex.Message}");
+            return null;
         }
         finally
         {
@@ -152,12 +144,17 @@ public class MusicService
                 await Task.Delay(1000);
             }
 
-            if (audio == null ||
-                audio.ConnectionState != ConnectionState.Connected)
+            // ในเมธอด PlayByUserIdAsync ช่วงที่หา IAudioClient audio
+            IAudioClient? audio = await JoinAsync(u.VoiceChannel);
+
+            if (audio == null || audio.ConnectionState != ConnectionState.Connected)
             {
-                Console.WriteLine("❌ Cannot connect voice");
+                Console.WriteLine("❌ Voice Client is not connected. Skipping play.");
                 return;
             }
+
+            // ก่อนเริ่ม stream ให้เรียกใช้ตัวนี้เสมอ
+            await audio.SetSpeakingAsync(true);
 
             // ✅ รอ voice ready แค่ครั้งเดียว
             if (!await WaitForVoiceReady(audio))
