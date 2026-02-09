@@ -28,8 +28,10 @@ public class MusicService
     static MusicService()
     {
         // แก้ไข: ใช้ DiscordConfig แทนการไปเรียก AudioClient โดยตรง
+        var assembly = typeof(Discord.DiscordConfig).Assembly;
         Console.WriteLine("======================================");
-        Console.WriteLine($"🚀 ACTUAL DLL VERSION: {Discord.DiscordConfig.Version}");
+        Console.WriteLine($"🔍 DLL Path: {assembly.Location}");
+        Console.WriteLine($"🚀 Version: {Discord.DiscordConfig.Version}");
         Console.WriteLine("======================================");
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
