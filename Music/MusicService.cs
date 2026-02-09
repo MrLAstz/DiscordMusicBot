@@ -234,33 +234,21 @@ public class MusicService
         foreach (var g in _discordClient.Guilds)
         {
             user = g.GetUser(userId);
-            if (user != null)
-            {
-                guild = g;
-                break;
-            }
+            if (user != null) { guild = g; break; }
         }
 
         if (user?.VoiceChannel == null || guild == null)
-            await Task.CompletedTask;
-        return Task.FromResult<object>(new { guild = "not in voice", users = new List<object>() });
+            return new { guild = "not in voice", users = new List<object>() };
 
         var channel = user.VoiceChannel;
-
         var users = guild.Users
             .Where(u => u.VoiceChannel?.Id == channel.Id)
-            .Select(u => new
-            {
+            .Select(u => new {
                 name = u.GlobalName ?? u.Username,
                 avatar = u.GetAvatarUrl() ?? u.GetDefaultAvatarUrl(),
                 status = u.Status.ToString().ToLower()
-            })
-            .ToList();
+            }).ToList();
 
-        return Task.FromResult<object>(new
-        {
-            guild = $"{guild.Name} ({channel.Name})",
-            users
-        });
+        return await Task.FromResult<object>(new { guild = $"{guild.Name} ({channel.Name})", users });
     }
 }
