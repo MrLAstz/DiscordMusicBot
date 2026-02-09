@@ -27,10 +27,10 @@ public class MusicService
     // ===== FIX libopus (Linux / Docker / Railway) =====
     static MusicService()
     {
-        // บรรทัดนี้จะยืนยันว่า DLL ที่โหลดมาคือเวอร์ชันอะไร
         Console.WriteLine("======================================");
         Console.WriteLine($"🚀 RUNNING WITH DISCORD.NET: {Discord.DiscordConfig.Version}");
         Console.WriteLine("======================================");
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             NativeLibrary.SetDllImportResolver(
@@ -39,8 +39,12 @@ public class MusicService
                 {
                     if (libraryName == "opus" || libraryName == "libopus")
                     {
-                        foreach (var p in new[] { "libopus.so.0", "libopus.so", "opus.so" })
+                        // ลองโหลดจากหลายๆ ชื่อที่ Linux อาจจะเรียก
+                        var paths = new[] { "libopus.so.0", "libopus.so", "/usr/lib/libopus.so", "/usr/lib/x86_64-linux-gnu/libopus.so.0" };
+                        foreach (var p in paths)
+                        {
                             if (NativeLibrary.TryLoad(p, out var h)) return h;
+                        }
                     }
                     return IntPtr.Zero;
                 });
