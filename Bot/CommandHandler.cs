@@ -21,41 +21,53 @@ public class CommandHandler
 
     private async Task RegisterCommandsAsync()
     {
-        var helpCmd = new SlashCommandBuilder()
-            .WithName("help")
-            .WithDescription("ดูเมนูคำสั่งทั้งหมด");
+        try
+        {
+            var helpCmd = new SlashCommandBuilder()
+                .WithName("help")
+                .WithDescription("ดูเมนูคำสั่งทั้งหมด");
 
-        var playCmd = new SlashCommandBuilder()
-            .WithName("play")
-            .WithDescription("เล่นเพลงจาก YouTube")
-            .AddOption(
-                "query",
-                ApplicationCommandOptionType.String,
-                "ชื่อเพลงหรือลิงก์ YouTube",
-                isRequired: true
-            );
+            var joinCmd = new SlashCommandBuilder()
+                .WithName("join")
+                .WithDescription("สั่งให้บอทเข้าห้องเสียง");
 
-        var statusCmd = new SlashCommandBuilder()
-            .WithName("status")
-            .WithDescription("ดูสถานะปัจจุบัน");
+            var playCmd = new SlashCommandBuilder()
+                .WithName("play")
+                .WithDescription("เล่นเพลงจาก YouTube")
+                .AddOption(
+                    name: "url",
+                    type: ApplicationCommandOptionType.String,
+                    description: "ชื่อเพลงหรือลิงก์ YouTube",
+                    isRequired: true
+                );
 
-        await _client.CreateGlobalApplicationCommandAsync(helpCmd.Build());
-        await _client.CreateGlobalApplicationCommandAsync(playCmd.Build());
-        await _client.CreateGlobalApplicationCommandAsync(statusCmd.Build());
+            var statusCmd = new SlashCommandBuilder()
+                .WithName("status")
+                .WithDescription("ดูสถานะปัจจุบัน");
 
-        Console.WriteLine("✅ Slash Commands registered");
+            await _client.CreateGlobalApplicationCommandAsync(helpCmd.Build());
+            await _client.CreateGlobalApplicationCommandAsync(joinCmd.Build());
+            await _client.CreateGlobalApplicationCommandAsync(playCmd.Build());
+            await _client.CreateGlobalApplicationCommandAsync(statusCmd.Build());
+
+            Console.WriteLine("✅ Slash Commands registered successfully!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error registering commands: {ex}");
+        }
     }
 
     private async Task HandleSlashCommandAsync(SocketSlashCommand command)
     {
+        // 🔒 ป้องกัน null
         if (command.User is not SocketGuildUser user)
         {
-            await command.RespondAsync(
-                "❌ ใช้ได้เฉพาะในเซิร์ฟเวอร์",
-                ephemeral: true
-            );
+            await command.RespondAsync("❌ คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์", ephemeral: true);
             return;
         }
+
+        var channel = user.VoiceChannel;
 
         try
         {
@@ -64,34 +76,58 @@ public class CommandHandler
                 case "help":
                     {
                         var embed = new EmbedBuilder()
-                            .WithTitle("🎵 MrLastBot")
-                            .WithDescription("คำสั่งที่ใช้งานได้")
-                            .AddField("🎶 เพลง", "`/play <ชื่อเพลง | url>`")
-                            .AddField("📡 สถานะ", "`/status`")
+                            .WithTitle("🎵 MrLastBot - เมนูคำสั่ง")
+                            .WithDescription("เลือกใช้งานคำสั่งผ่านการพิมพ์ `/` ได้เลยครับ")
                             .WithColor(Color.Blue)
+                            .AddField("🚀 พื้นฐาน",
+                                "`/join` : เข้าห้องเสียง\n" +
+                                "`/status` : ดูสถานะ")
+                            .AddField("🎶 เพลง",
+                                "`/play [url]` : เล่นเพลง YouTube")
+                            .WithFooter("หากเมนูไม่ขึ้น ให้ลองปิด-เปิด Discord ใหม่")
+                            .WithCurrentTimestamp()
                             .Build();
 
                         await command.RespondAsync(embed: embed);
                         break;
                     }
 
-                case "play":
+                case "join":
                     {
-                        if (user.VoiceChannel == null)
+                        if (channel == null)
                         {
                             await command.RespondAsync(
-                                "❌ เข้าห้องเสียงก่อนนะ",
-                                ephemeral: true
-                            );
+                                "❌ คุณต้องเข้าห้องเสียงก่อนสั่งครับ",
+                                ephemeral: true);
                             return;
                         }
 
-                        var input = command.Data.Options.First().Value.ToString();
-                        if (string.IsNullOrWhiteSpace(input))
+                        var audioClient = await _music.JoinAsync(channel);
+                        if (audioClient == null)
                         {
-                            await command.RespondAsync("❌ ต้องใส่ชื่อเพลงหรือ URL");
+                            await command.RespondAsync("❌ ไม่สามารถเข้าห้องเสียงได้");
                             return;
                         }
+
+                        await command.RespondAsync(
+                            $"✅ เข้าไปที่ห้อง **{channel.Name}** เรียบร้อย!");
+                        break;
+                    }
+
+                case "play":
+                    {
+                        if (channel == null)
+                        {
+                            await command.RespondAsync(
+                                "❌ เข้าห้องเสียงก่อน",
+                                ephemeral: true);
+                            return;
+                        }
+
+                        var input = command.Data.Options
+                            .First().Value.ToString()!;
+
+                        await command.RespondAsync($"🎵 เพิ่มเพลงเข้าคิว: {input}");
 
                         await _music.EnqueueAsync(
                             user.Id,
@@ -99,25 +135,35 @@ public class CommandHandler
                             user.Username
                         );
 
-                        await command.RespondAsync($"🎵 เพิ่มเข้าคิว: **{input}**");
                         break;
                     }
 
+
                 case "status":
                     {
-                        var status = await _music.GetUsersInVoice(user.Id);
-                        await command.RespondAsync($"📍 {status}");
+                        var statusObj = await _music.GetUsersInVoice(user.Id);
+
+                        var guildInfo =
+                            statusObj.GetType()
+                                .GetProperty("guild")
+                                ?.GetValue(statusObj)
+                                ?.ToString()
+                            ?? "unknown";
+
+                        await command.RespondAsync(
+                            $"📍 สถานะตอนนี้: **{guildInfo}**");
                         break;
                     }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("🔥 Command error");
-            Console.WriteLine(ex);
-
+            Console.WriteLine($"🔥 Command Error: {ex}");
             if (!command.HasResponded)
-                await command.RespondAsync("⚠️ เกิดข้อผิดพลาด");
+            {
+                await command.RespondAsync(
+                    "⚠️ เกิดข้อผิดพลาดในการประมวลผลคำสั่ง");
+            }
         }
     }
 }
