@@ -129,7 +129,7 @@ public class CommandHandler
 
                         await command.RespondAsync($"🎵 เพิ่มเพลงเข้าคิว: {input}");
 
-                        await _music.EnqueueAsync(
+                        await _music.PlayByUserIdAsync(user.Id, input);
                             user.Id,
                             input,
                             user.Username

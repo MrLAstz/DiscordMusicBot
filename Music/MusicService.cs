@@ -273,9 +273,9 @@ public class MusicService
         }
     }
 
-    public async Task ToggleAsync(ulong userId)
+    public Task ToggleAsync(ulong userId)
     {
-        await SkipAsync(userId);
+        return SkipAsync(userId);
     }
 
 
