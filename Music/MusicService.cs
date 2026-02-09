@@ -27,10 +27,9 @@ public class MusicService
     // ===== FIX libopus (Linux / Docker / Railway) =====
     static MusicService()
     {
-        Console.WriteLine($"🔍 ACTUAL INTERNAL VERSION: {typeof(Discord.Audio.AudioClient).Assembly.GetName().Version}");
-        Console.WriteLine($"🚀 DLL VERSION CHECK: {Discord.DiscordConfig.Version}");
+        // แก้ไข: ใช้ DiscordConfig แทนการไปเรียก AudioClient โดยตรง
         Console.WriteLine("======================================");
-        Console.WriteLine($"🚀 RUNNING WITH DISCORD.NET: {Discord.DiscordConfig.Version}");
+        Console.WriteLine($"🚀 ACTUAL DLL VERSION: {Discord.DiscordConfig.Version}");
         Console.WriteLine("======================================");
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -41,8 +40,12 @@ public class MusicService
                 {
                     if (libraryName == "opus" || libraryName == "libopus")
                     {
-                        // ลองโหลดจากหลายๆ ชื่อที่ Linux อาจจะเรียก
-                        var paths = new[] { "libopus.so.0", "libopus.so", "/usr/lib/libopus.so", "/usr/lib/x86_64-linux-gnu/libopus.so.0" };
+                        var paths = new[] {
+                        "libopus.so.0",
+                        "libopus.so",
+                        "/usr/lib/libopus.so",
+                        "/usr/lib/x86_64-linux-gnu/libopus.so.0"
+                        };
                         foreach (var p in paths)
                         {
                             if (NativeLibrary.TryLoad(p, out var h)) return h;
@@ -265,6 +268,7 @@ public class MusicService
     public async Task ToggleAsync(ulong userId)
     {
         await SkipAsync(userId);
+        await Task.CompletedTask; // เพิ่มบรรทัดนี้เพื่อลบ Warning CS1998
     }
 
 
