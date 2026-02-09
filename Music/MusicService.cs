@@ -204,7 +204,6 @@ public class MusicService
     public async Task SkipAsync(ulong userId)
     {
         if (_discordClient == null) return;
-
         foreach (var g in _discordClient.Guilds)
         {
             if (_cts.TryRemove(g.Id, out var cts))
@@ -213,6 +212,8 @@ public class MusicService
                 cts.Dispose();
             }
         }
+        // แก้จาก Task.CompletedTask เป็นบรรทัดนี้เพื่อลด Warning
+        await Task.Yield();
     }
 
     public Task ToggleAsync(ulong userId)

@@ -39,6 +39,11 @@ public class BotService
         await _client.LoginAsync(TokenType.Bot, _token);
         await _client.StartAsync();
     }
-
+    // ตรวจสอบว่ามีก้อนนี้อยู่ในคลาส BotService
+    private Task LogAsync(LogMessage log)
+    {
+        Console.WriteLine(log.ToString());
+        return Task.CompletedTask;
+    }
 }
 

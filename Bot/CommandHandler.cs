@@ -137,9 +137,14 @@ public class CommandHandler
 
                 case "status":
                     {
-                        var statusObj = await _music.GetUsersInVoice(user.Id);
+                        // ใช้ dynamic เพื่อให้อ่านค่า guild ที่เราส่งมาจาก MusicService ได้ง่ายๆ
+                        dynamic statusObj = await _music.GetUsersInVoice(user.Id);
 
-                        await command.RespondAsync($"📍 สถานะตอนนี้: **{statusObj.GuildName}**");
+                        // ดึงค่า guild (ตัวเล็ก) ตามที่ตั้งไว้ใน MusicService
+                        string guildInfo = statusObj.guild;
+
+                        await command.RespondAsync(
+                            $"📍 สถานะตอนนี้: **{guildInfo}**");
                         break;
                     }
             }
