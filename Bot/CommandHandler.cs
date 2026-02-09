@@ -124,16 +124,12 @@ public class CommandHandler
                             return;
                         }
 
-                        var input = command.Data.Options
-                            .First().Value.ToString()!;
+                        var input = command.Data.Options.First().Value.ToString()!;
 
-                        await command.RespondAsync($"🎵 เพิ่มเพลงเข้าคิว: {input}");
+                        await command.RespondAsync($"🎵 กำลังค้นหาและเล่นเพลง: {input}");
 
+                        // แก้ไขจุดนี้: ส่งแค่ 2 parameter ตามที่ MusicService.cs กำหนดไว้
                         await _music.PlayByUserIdAsync(user.Id, input);
-                            user.Id,
-                            input,
-                            user.Username
-                        );
 
                         break;
                     }
