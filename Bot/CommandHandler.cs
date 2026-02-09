@@ -139,15 +139,7 @@ public class CommandHandler
                     {
                         var statusObj = await _music.GetUsersInVoice(user.Id);
 
-                        var guildInfo =
-                            statusObj.GetType()
-                                .GetProperty("guild")
-                                ?.GetValue(statusObj)
-                                ?.ToString()
-                            ?? "unknown";
-
-                        await command.RespondAsync(
-                            $"📍 สถานะตอนนี้: **{guildInfo}**");
+                        await command.RespondAsync($"📍 สถานะตอนนี้: **{statusObj.GuildName}**");
                         break;
                     }
             }

@@ -84,7 +84,6 @@ public class MusicService
             int timeout = 0;
             while (client.ConnectionState != ConnectionState.Connected && timeout < 25)
             {
-                await Task.Delay(200);
                 timeout++;
             }
 

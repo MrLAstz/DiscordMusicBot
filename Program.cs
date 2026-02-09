@@ -16,7 +16,6 @@ class Program
         }
 
         var music = new MusicService();
-        _ = Task.Run(() => WebServer.Start(args, music, port));
 
         var bot = new BotService(token, music);
         await bot.StartAsync();
