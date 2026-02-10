@@ -85,36 +85,44 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // ล้าง Session เก่า
+            // 1. ตรวจสอบว่ามี Client เก่าค้างอยู่ใน Dictionary ไหม ถ้ามีให้ทำลายทิ้งให้หมด
             if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? existing))
             {
-                try { await existing.StopAsync(); existing.Dispose(); } catch { }
-                await Task.Delay(1000);
+                try
+                {
+                    await existing.StopAsync();
+                    existing.Dispose();
+                }
+                catch { }
             }
 
-            // เตะบอทออกเพื่อให้เริ่มใหม่จริงๆ
-            try { await channel.DisconnectAsync(); } catch { }
-            await Task.Delay(1000);
+            // 2. 🔥 ไม้ตาย: สั่ง Disconnect ที่ระดับ Guild เพื่อล้างสถานะ Voice ใน Gateway ของ Discord
+            // บรรทัดนี้จะช่วยแก้ 4006 ได้ดีที่สุดครับ
+            try { await channel.Guild.DisconnectAudioAsync(); } catch { }
 
-            Console.WriteLine($"🔊 Connecting to {channel.Name}...");
+            // รอให้ Discord ล้าง Session เก่าสักครู่ (2 วินาที)
+            await Task.Delay(2000);
 
-            // 🔥 แก้ตรงนี้: ลบ external: false ทิ้งไปเลย! ให้เหลือแค่นี้พอ
+            Console.WriteLine($"🔊 Attempting Fresh Connection to {channel.Name}...");
+
+            // 3. เชื่อมต่อใหม่ (ใช้ค่า Default ทั้งหมด)
             var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // รอเช็คสถานะ
+            // รอจนกว่าจะ Connected จริงๆ
             int retry = 0;
-            while (client.ConnectionState != ConnectionState.Connected && retry < 20) // เพิ่มรอบรอเป็น 20
+            while (client.ConnectionState != ConnectionState.Connected && retry < 15)
             {
-                await Task.Delay(500);
+                await Task.Delay(1000);
                 retry++;
             }
 
             if (client.ConnectionState == ConnectionState.Connected)
             {
-                Console.WriteLine("✅ Voice Connected using default encryption!");
+                Console.WriteLine("✅ Voice Connected successfully!");
                 _audioClients[channel.Guild.Id] = client;
                 return client;
             }
+
             return null;
         }
         catch (Exception ex)
