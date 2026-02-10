@@ -98,8 +98,8 @@ public class MusicService
 
             Console.WriteLine($"🔊 Creating Fresh Connection to {channel.Name}...");
 
-            // เชื่อมต่อใหม่แบบใสสะอาด
-            var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false, external: false);
+            // ลบ external: false ออก ให้ Library ตัดสินใจเอง
+            var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
             // รอให้สถานะนิ่ง
             await Task.Delay(2000);
