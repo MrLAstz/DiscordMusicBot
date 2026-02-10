@@ -2,16 +2,16 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# ล้าง Cache ของระบบ NuGet ในเครื่อง Build ให้เกลี้ยง
+# ล้าง Cache ของระบบ NuGet
 RUN dotnet nuget locals all --clear 
 
-# 1. ดึง Library ใหม่ 100%
+# 1. ดึง Library
 COPY DiscordMusicBot.csproj ./
 RUN dotnet restore --no-cache
 
 COPY . .
 
-# 2. แก้ไขตรงนี้: สั่งลบโฟลเดอร์ที่อาจค้างมาจากเครื่องเรา และสั่งคอมไพล์ใหม่แบบ Clean
+# 2. คอมไพล์ใหม่ (ลบ bin/obj ออกก่อน)
 RUN rm -rf bin obj && \
     dotnet publish -c Release -o /app /p:UseAppHost=false
 
@@ -29,7 +29,8 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY --from=build /app .
-ะ
+
+# --- ตรวจสอบบรรทัดนี้ครับ ตัว "ะ" ต้องไม่มีแล้ว ---
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
 
 ENTRYPOINT ["dotnet", "DiscordMusicBot.dll"]
