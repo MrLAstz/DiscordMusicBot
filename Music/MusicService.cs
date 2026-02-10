@@ -85,37 +85,39 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // 1. เคลียร์ Client เก่าในหน่วยความจำบอท
-            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? existing))
+            // 1. นุกล้าง Dictionary
+            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? oldClient))
             {
-                try { await existing.StopAsync(); existing.Dispose(); } catch { }
+                try { await oldClient.StopAsync(); oldClient.Dispose(); } catch { }
             }
 
-            // 2. 🔥 วิธี Force Disconnect ที่ถูกต้อง:
-            // หาตัวบอทเองในเซิร์ฟเวอร์นี้ แล้วสั่งให้ย้ายออกจากห้องเสียง (ตั้งเป็น null)
+            // 2. บังคับ Disconnect ทิ้ง และรอให้นานขึ้น (3 วินาที)
+            // เพื่อให้ Discord มั่นใจว่าบอทหลุดออกไปจริงๆ
             var currentUser = await channel.Guild.GetCurrentUserAsync();
             if (currentUser.VoiceChannel != null)
             {
+                Console.WriteLine("🧹 Cleaning up old voice session...");
                 try { await currentUser.ModifyAsync(x => x.Channel = null); } catch { }
-                await Task.Delay(1500); // รอให้ Discord ล้างสถานะ Session แป๊บนึง
+                await Task.Delay(3000);
             }
 
-            Console.WriteLine($"🔊 Creating Fresh Connection to {channel.Name}...");
+            Console.WriteLine($"🔊 Initializing Brand New Connection to {channel.Name}...");
 
-            // 3. เริ่มเชื่อมต่อใหม่
+            // 3. เชื่อมต่อ (ไม่ต้องใส่พารามิเตอร์แปลกๆ ใช้ค่ามาตรฐานของ 3.18.0)
             var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // รอจนกว่าจะต่อติด
-            int retry = 0;
-            while (client.ConnectionState != ConnectionState.Connected && retry < 15)
+            // รอเช็คจนกว่าสถานะจะเป็น Connected
+            int attempts = 0;
+            while (client.ConnectionState != ConnectionState.Connected && attempts < 20)
             {
-                await Task.Delay(1000);
-                retry++;
+                await Task.Delay(1000); // รอทีละ 1 วินาที
+                attempts++;
+                if (attempts % 5 == 0) Console.WriteLine($"⏳ Waiting for connection... ({attempts}s)");
             }
 
             if (client.ConnectionState == ConnectionState.Connected)
             {
-                Console.WriteLine("✅ Voice Connected and ready to play!");
+                Console.WriteLine("✅ SUCCESS! Voice session established.");
                 _audioClients[channel.Guild.Id] = client;
                 return client;
             }

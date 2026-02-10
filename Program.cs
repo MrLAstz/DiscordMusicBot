@@ -18,11 +18,9 @@ class Program
         }
         var config = new DiscordSocketConfig
         {
-            // บังคับให้เริ่ม Session ใหม่เสมอถ้าอันเก่ามีปัญหา
-            AlwaysDownloadUsers = false,
-            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.GuildVoiceStates,
-            // เพิ่มบรรทัดนี้:
-            HandlerTimeout = 30000,
+            // ... ของเดิมที่คุณมี ...
+            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.GuildVoiceStates, // ต้องมีตัวนี้!
+            AlwaysDownloadUsers = true
         };
         var client = new DiscordSocketClient(config);
         var music = new MusicService();
