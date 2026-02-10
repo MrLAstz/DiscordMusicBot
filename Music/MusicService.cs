@@ -85,28 +85,33 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // ล้าง Client ใน Dictionary ของเรา
+            // ล้าง Session เก่า
             if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? existing))
             {
                 try { await existing.StopAsync(); existing.Dispose(); } catch { }
                 await Task.Delay(1000);
             }
 
-            // 🔥 เพิ่มบรรทัดนี้: บังคับเตะตัวเองออกจาก Channel (เผื่อ Discord Server ยังจำว่าบอทอยู่ในห้อง)
+            // เตะบอทออกเพื่อให้เริ่มใหม่จริงๆ
             try { await channel.DisconnectAsync(); } catch { }
-            await Task.Delay(2000); // รอให้ Gateway ลบ Session เก่าออกจริงๆ
+            await Task.Delay(1000);
 
-            Console.WriteLine($"🔊 Creating Fresh Connection to {channel.Name}...");
+            Console.WriteLine($"🔊 Connecting to {channel.Name}...");
 
-            // ลบ external: false ออก ให้ Library ตัดสินใจเอง
+            // 🔥 แก้ตรงนี้: ลบ external: false ทิ้งไปเลย! ให้เหลือแค่นี้พอ
             var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // รอให้สถานะนิ่ง
-            await Task.Delay(2000);
-
-            if (client != null && client.ConnectionState == ConnectionState.Connected)
+            // รอเช็คสถานะ
+            int retry = 0;
+            while (client.ConnectionState != ConnectionState.Connected && retry < 20) // เพิ่มรอบรอเป็น 20
             {
-                Console.WriteLine("✅ Fresh Voice Connected!");
+                await Task.Delay(500);
+                retry++;
+            }
+
+            if (client.ConnectionState == ConnectionState.Connected)
+            {
+                Console.WriteLine("✅ Voice Connected using default encryption!");
                 _audioClients[channel.Guild.Id] = client;
                 return client;
             }
