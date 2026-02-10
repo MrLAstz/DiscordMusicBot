@@ -85,30 +85,27 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // 1. ตรวจสอบว่ามี Client เก่าค้างอยู่ใน Dictionary ไหม ถ้ามีให้ทำลายทิ้งให้หมด
+            // 1. เคลียร์ Client เก่าในหน่วยความจำบอท
             if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? existing))
             {
-                try
-                {
-                    await existing.StopAsync();
-                    existing.Dispose();
-                }
-                catch { }
+                try { await existing.StopAsync(); existing.Dispose(); } catch { }
             }
 
-            // 2. 🔥 ไม้ตาย: สั่ง Disconnect ที่ระดับ Guild เพื่อล้างสถานะ Voice ใน Gateway ของ Discord
-            // บรรทัดนี้จะช่วยแก้ 4006 ได้ดีที่สุดครับ
-            try { await channel.Guild.DisconnectAudioAsync(); } catch { }
+            // 2. 🔥 วิธี Force Disconnect ที่ถูกต้อง:
+            // หาตัวบอทเองในเซิร์ฟเวอร์นี้ แล้วสั่งให้ย้ายออกจากห้องเสียง (ตั้งเป็น null)
+            var currentUser = await channel.Guild.GetCurrentUserAsync();
+            if (currentUser.VoiceChannel != null)
+            {
+                try { await currentUser.ModifyAsync(x => x.Channel = null); } catch { }
+                await Task.Delay(1500); // รอให้ Discord ล้างสถานะ Session แป๊บนึง
+            }
 
-            // รอให้ Discord ล้าง Session เก่าสักครู่ (2 วินาที)
-            await Task.Delay(2000);
+            Console.WriteLine($"🔊 Creating Fresh Connection to {channel.Name}...");
 
-            Console.WriteLine($"🔊 Attempting Fresh Connection to {channel.Name}...");
-
-            // 3. เชื่อมต่อใหม่ (ใช้ค่า Default ทั้งหมด)
+            // 3. เริ่มเชื่อมต่อใหม่
             var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // รอจนกว่าจะ Connected จริงๆ
+            // รอจนกว่าจะต่อติด
             int retry = 0;
             while (client.ConnectionState != ConnectionState.Connected && retry < 15)
             {
@@ -118,7 +115,7 @@ public class MusicService
 
             if (client.ConnectionState == ConnectionState.Connected)
             {
-                Console.WriteLine("✅ Voice Connected successfully!");
+                Console.WriteLine("✅ Voice Connected and ready to play!");
                 _audioClients[channel.Guild.Id] = client;
                 return client;
             }
