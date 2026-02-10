@@ -82,52 +82,34 @@ public class MusicService
     // ===== JOIN VOICE =====
     public async Task<IAudioClient?> JoinAsync(IVoiceChannel channel)
     {
-        // ใช้ Lock เพื่อไม่ให้คำสั่ง Join ทำงานซ้อนกันเอง
         await _joinLock.WaitAsync();
         try
         {
-            // 1. ตรวจสอบและล้างสถานะเก่าให้หมด
+            // ล้าง Client ใน Dictionary ของเรา
             if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? existing))
             {
-                Console.WriteLine("🧹 Cleaning up old voice session...");
-                try
-                {
-                    await existing.StopAsync();
-                    existing.Dispose();
-                }
-                catch { }
-
-                // รอให้ Discord Gateway เคลียร์ Session เก่า (เพิ่มเป็น 2 วินาทีเพื่อให้ชัวร์)
-                await Task.Delay(2000);
+                try { await existing.StopAsync(); existing.Dispose(); } catch { }
+                await Task.Delay(1000);
             }
 
-            Console.WriteLine($"🔊 Attempting to connect to {channel.Name}...");
+            // 🔥 เพิ่มบรรทัดนี้: บังคับเตะตัวเองออกจาก Channel (เผื่อ Discord Server ยังจำว่าบอทอยู่ในห้อง)
+            try { await channel.DisconnectAsync(); } catch { }
+            await Task.Delay(2000); // รอให้ Gateway ลบ Session เก่าออกจริงๆ
 
-            // 2. ใช้ CancellationToken เพื่อกำหนด Timeout ของเราเอง (ป้องกันบอทค้าง)
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            Console.WriteLine($"🔊 Creating Fresh Connection to {channel.Name}...");
 
-            // 🚀 เชื่อมต่อ (Library 3.18.0 จะพยายามเลือก Encryption ที่ดีที่สุดให้เอง)
-            var client = await channel.ConnectAsync(
-                selfDeaf: true,
-                selfMute: false,
-                external: false // 👈 เพิ่มตรงนี้ เพื่อบอกให้ Library จัดการเรื่อง Gateway เอง
-            );
+            // เชื่อมต่อใหม่แบบใสสะอาด
+            var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false, external: false);
 
-            // 3. หลังจาก Connect เสร็จ "ต้องรอ" ให้สถานะ Connected นิ่งจริงๆ
-            int retry = 0;
-            while (client.ConnectionState != ConnectionState.Connected && retry < 10)
+            // รอให้สถานะนิ่ง
+            await Task.Delay(2000);
+
+            if (client != null && client.ConnectionState == ConnectionState.Connected)
             {
-                await Task.Delay(500);
-                retry++;
-            }
-
-            if (client.ConnectionState == ConnectionState.Connected)
-            {
-                Console.WriteLine("✅ Voice Connected and Ready!");
+                Console.WriteLine("✅ Fresh Voice Connected!");
                 _audioClients[channel.Guild.Id] = client;
                 return client;
             }
-
             return null;
         }
         catch (Exception ex)
