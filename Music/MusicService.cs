@@ -107,7 +107,11 @@ public class MusicService
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 
             // 🚀 เชื่อมต่อ (Library 3.18.0 จะพยายามเลือก Encryption ที่ดีที่สุดให้เอง)
-            var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
+            var client = await channel.ConnectAsync(
+                selfDeaf: true,
+                selfMute: false,
+                external: false // 👈 เพิ่มตรงนี้ เพื่อบอกให้ Library จัดการเรื่อง Gateway เอง
+            );
 
             // 3. หลังจาก Connect เสร็จ "ต้องรอ" ให้สถานะ Connected นิ่งจริงๆ
             int retry = 0;
