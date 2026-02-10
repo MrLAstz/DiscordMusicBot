@@ -85,34 +85,25 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // 1. ถ้าเชื่อมต่ออยู่แล้ว ให้ส่งคืนเลย
-            if (_audioClients.TryGetValue(channel.Guild.Id, out IAudioClient? existing))
+            // 1. ถ้ามีของเดิมค้างอยู่ (ต่อให้สถานะจะเป็นอะไร) ให้เอาออกจาก Dictionary และ Dispose ทิ้งก่อน
+            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? existing))
             {
-                if (existing.ConnectionState == ConnectionState.Connected)
-                    return existing;
+                try { await existing.StopAsync(); existing.Dispose(); } catch { }
 
-                // ถ้าสถานะไม่ปกติ ให้ล้างทิ้งก่อนเชื่อมใหม่
-                try { await existing.StopAsync(); } catch { }
-                existing.Dispose();
-                _audioClients.TryRemove(channel.Guild.Id, out _);
+                // 🔥 จุดสำคัญ: ต้องรอสักนิดเพื่อให้ Discord Server รู้ว่าเราตัดสายเก่าแล้วจริงๆ
+                await Task.Delay(1000);
             }
 
-            Console.WriteLine($"🔊 Connecting to {channel.Name} (Version 3.18.0)...");
+            Console.WriteLine($"🔊 Connecting to {channel.Name}...");
 
-            // 2. เชื่อมต่อ (เวอร์ชันใหม่จะจัดการ Encryption ให้เองโดยอัตโนมัติ)
+            // 2. เริ่มการเชื่อมต่อใหม่
             var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // 3. ใส่ Delay เล็กน้อยเพื่อให้แน่ใจว่า Internal State ของ Discord.Net อัปเดตครบ
+            // 🚀 เพิ่ม Delay อีกนิดหลังเชื่อมเสร็จเพื่อให้ Internal State ของ Library นิ่ง
             await Task.Delay(1000);
 
-            if (client.ConnectionState == ConnectionState.Connected)
-            {
-                Console.WriteLine("✅ Voice Connected!");
-                _audioClients[channel.Guild.Id] = client;
-                return client;
-            }
-
-            return null;
+            _audioClients[channel.Guild.Id] = client;
+            return client;
         }
         catch (Exception ex)
         {
@@ -162,7 +153,21 @@ public class MusicService
         try
         {
             // 2️⃣ เชื่อมต่อเข้าห้องเสียง (เรียก JoinAsync เพียงครั้งเดียว)
-            IAudioClient? audio = await JoinAsync(user.VoiceChannel);
+            // 2️⃣ เชื่อมต่อเข้าห้องเสียง (เช็คก่อนว่าเชื่อมอยู่แล้วหรือไม่ เพื่อป้องกัน Error 4006)
+            IAudioClient? audio;
+
+            if (_audioClients.TryGetValue(user.Guild.Id, out var currentClient) &&
+                currentClient.ConnectionState == ConnectionState.Connected)
+            {
+                // ถ้าเชื่อมต่ออยู่แล้ว ให้ใช้ตัวเดิมเล่นต่อเลย
+                audio = currentClient;
+                Console.WriteLine("♻️ Using existing connection to play music.");
+            }
+            else
+            {
+                // ถ้ายังไม่มีการเชื่อมต่อ หรือหลุดไปแล้ว ค่อยสั่ง Join ใหม่
+                audio = await JoinAsync(user.VoiceChannel);
+            }
 
             if (audio == null)
             {
