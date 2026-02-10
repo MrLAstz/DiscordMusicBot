@@ -1,4 +1,6 @@
-﻿using DiscordMusicBot.Bot;
+﻿using Discord;           // สำหรับ GatewayIntents
+using Discord.WebSocket; // สำหรับ DiscordSocketConfig และ DiscordSocketClient
+using DiscordMusicBot.Bot;
 using DiscordMusicBot.Music;
 using DiscordMusicBot.Web;
 
