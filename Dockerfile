@@ -2,23 +2,25 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# ล้าง Cache ของระบบ NuGet
+# ล้าง Cache ของระบบ NuGet ให้เกลี้ยงก่อนเริ่ม
 RUN dotnet nuget locals all --clear 
 
-# 1. ดึง Library
+# 1. ดึงไฟล์โปรเจกต์มา Restore แบบไม่ใช้ Cache
 COPY DiscordMusicBot.csproj ./
 RUN dotnet restore --no-cache
 
+# 2. ก๊อปปี้ไฟล์ทั้งหมดเข้าเครื่อง Build
 COPY . .
 
-# 2. คอมไพล์ใหม่ (ลบ bin/obj ออกก่อน)
+# 3. ลบโฟลเดอร์ที่อาจจะค้างมาจากการรันในเครื่องตัวเอง (bin/obj) 
+# แล้วค่อย Publish ใหม่
 RUN rm -rf bin obj && \
-    dotnet publish -c Release -o /app /p:UseAppHost=false
+    dotnet publish -c Release -o /app /p:UseAppHost=false --no-restore
 
 # ---------- RUNTIME ----------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
-# 3. ติดตั้ง Library พื้นฐานสำหรับเสียง
+# 3. ติดตั้ง Library พื้นฐานสำหรับเสียง (ffmpeg, opus, sodium)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libopus0 \
@@ -30,7 +32,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 COPY --from=build /app .
 
-# --- ตรวจสอบบรรทัดนี้ครับ ตัว "ะ" ต้องไม่มีแล้ว ---
+# ตั้งค่า URL สำหรับ Railway
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
 
 ENTRYPOINT ["dotnet", "DiscordMusicBot.dll"]
