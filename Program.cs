@@ -16,17 +16,17 @@ class Program
             Console.WriteLine("❌ DISCORD_TOKEN not found");
             return;
         }
-        var config = new DiscordSocketConfig
-        {
-            // ... ของเดิมที่คุณมี ...
-            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.GuildVoiceStates, // ต้องมีตัวนี้!
-            AlwaysDownloadUsers = true
-        };
-        var client = new DiscordSocketClient(config);
+
+        // 1. สร้าง Service หลัก
         var music = new MusicService();
+
+        // 2. ส่งแค่ Token และ Service เข้าไป (ไม่ต้องสร้าง Client ตรงนี้)
+        var bot = new BotService(token, music);
+
+        // 3. เริ่ม WebServer
         _ = Task.Run(() => WebServer.Start(args, music, port));
 
-        var bot = new BotService(token, music);
+        // 4. เริ่มบอท
         await bot.StartAsync();
 
         await Task.Delay(-1);

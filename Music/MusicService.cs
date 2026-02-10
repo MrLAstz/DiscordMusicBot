@@ -85,44 +85,27 @@ public class MusicService
         await _joinLock.WaitAsync();
         try
         {
-            // 1. นุกล้าง Dictionary
-            if (_audioClients.TryRemove(channel.Guild.Id, out IAudioClient? oldClient))
+            // 1. เช็คว่าเชื่อมต่ออยู่แล้วหรือไม่ (ถ้าใช่ ไม่ต้องต่อใหม่)
+            if (_audioClients.TryGetValue(channel.Guild.Id, out var existingClient))
             {
-                try { await oldClient.StopAsync(); oldClient.Dispose(); } catch { }
+                if (existingClient.ConnectionState == ConnectionState.Connected)
+                {
+                    Console.WriteLine("♻️ Already connected to voice.");
+                    return existingClient;
+                }
+                // ถ้ามีแต่ไม่ Connected ให้ลบทิ้ง
+                _audioClients.TryRemove(channel.Guild.Id, out _);
             }
 
-            // 2. บังคับ Disconnect ทิ้ง และรอให้นานขึ้น (3 วินาที)
-            // เพื่อให้ Discord มั่นใจว่าบอทหลุดออกไปจริงๆ
-            var currentUser = await channel.Guild.GetCurrentUserAsync();
-            if (currentUser.VoiceChannel != null)
-            {
-                Console.WriteLine("🧹 Cleaning up old voice session...");
-                try { await currentUser.ModifyAsync(x => x.Channel = null); } catch { }
-                await Task.Delay(3000);
-            }
+            Console.WriteLine($"🔊 Connecting to {channel.Name}...");
 
-            Console.WriteLine($"🔊 Initializing Brand New Connection to {channel.Name}...");
-
-            // 3. เชื่อมต่อ (ไม่ต้องใส่พารามิเตอร์แปลกๆ ใช้ค่ามาตรฐานของ 3.18.0)
+            // 2. เชื่อมต่อ (ใช้ Timeout ของ Discord.Net เอง)
             var client = await channel.ConnectAsync(selfDeaf: true, selfMute: false);
 
-            // รอเช็คจนกว่าสถานะจะเป็น Connected
-            int attempts = 0;
-            while (client.ConnectionState != ConnectionState.Connected && attempts < 20)
-            {
-                await Task.Delay(1000); // รอทีละ 1 วินาที
-                attempts++;
-                if (attempts % 5 == 0) Console.WriteLine($"⏳ Waiting for connection... ({attempts}s)");
-            }
-
-            if (client.ConnectionState == ConnectionState.Connected)
-            {
-                Console.WriteLine("✅ SUCCESS! Voice session established.");
-                _audioClients[channel.Guild.Id] = client;
-                return client;
-            }
-
-            return null;
+            // 3. เก็บลง Dictionary
+            _audioClients[channel.Guild.Id] = client;
+            Console.WriteLine("✅ Voice Connected!");
+            return client;
         }
         catch (Exception ex)
         {

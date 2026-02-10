@@ -16,22 +16,21 @@ public class BotService
         _token = token;
         _music = music;
 
+        // รวมทุกอย่างไว้ที่นี่ที่เดียว
         var config = new DiscordSocketConfig
         {
             GatewayIntents = GatewayIntents.AllUnprivileged |
-                             GatewayIntents.Guilds |
-                             GatewayIntents.GuildMembers |
-                             GatewayIntents.GuildPresences |
+                             GatewayIntents.GuildVoiceStates |
                              GatewayIntents.MessageContent |
-                             GatewayIntents.GuildVoiceStates,
+                             GatewayIntents.GuildMembers,
             AlwaysDownloadUsers = true,
-
-            // แก้ไข: ใช้แค่พารามิเตอร์ที่ระบบรองรับ
-            ConnectionTimeout = 30000,
-            HandlerTimeout = 5000     // เพิ่มตัวนี้แทนเพื่อช่วยเรื่องการตอบสนอง
+            HandlerTimeout = 5000,
+            ConnectionTimeout = 30000
         };
 
         _client = new DiscordSocketClient(config);
+
+        // ส่ง Client ที่สร้างเสร็จแล้วให้ MusicService ใช้งาน
         _music.SetDiscordClient(_client);
 
         _handler = new CommandHandler(_client, _music);
